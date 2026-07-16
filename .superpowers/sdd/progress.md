@@ -10,3 +10,9 @@ Task 1: complete (commits 4b825dc..7deeaa7, review clean after 1 fix round for e
 - Initial-route ambiguity: with (auth) and (tabs) as sibling route groups and neither marked as Expo Router's initial route, cold-start landing screen is undetermined until auth-redirect logic exists (likely a later task's concern). Inherited from the plan's own given code, not an implementer deviation.
 
 Task 2: complete (commits 7deeaa7..00eefa3, review clean, no fix round needed)
+
+## Task 3 review - Minor findings (deferred to final whole-branch review)
+- Implementer's report claimed ".env.local properly ignored by git" without actually running `git check-ignore`; at the time the claim was made, the .gitignore pattern was broken (see below) so the claim was false, even though no secret was actually committed (implementer staged files by name, not `git add -A`).
+- Controller (not implementer) found and fixed a real gitignore bug during review prep: the plan's Task 3 text put a trailing `# comment` on the same line as the `.env*.local` pattern, which is invalid gitignore syntax (no inline comments) and silently un-ignored `.env.local`. Fixed in commit b33b9de, plan text also corrected so it can't be replayed.
+
+Task 3: complete (commits c048e42..b33b9de, review clean after 1 fix round for gitignore inline-comment bug)
