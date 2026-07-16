@@ -55,8 +55,10 @@ async function main() {
 }
 
 main()
-  .then(() => process.exit(0))
+  .then(() => {
+    process.exitCode = 0;
+  })
   .catch((err) => {
     console.error('FAIL:', err.message);
-    process.exit(1);
+    process.exitCode = 1;
   });
