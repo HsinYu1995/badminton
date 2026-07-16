@@ -28,3 +28,9 @@ Task 4: complete (commits b88c2a2..ce681d3, review clean after 1 fix round for t
 - Also required (per Task 4's own deferred-to-Task-5 note): explicit `grant` statements to `authenticated`, scoped per-table to exactly the operations each table's policies allow, since this local Supabase CLI version doesn't auto-expose new tables to Data API roles.
 
 Task 5: complete (commit 797b9f3, review clean, no fix round needed)
+
+## Task 6 review - clean, no fix round needed
+- Deviation found and fixed: the brief's literal `src/lib/supabase.ts` code passes `storage: AsyncStorage` unconditionally, which crashes Expo Router's web SSR render pass (Node has no `window`, and AsyncStorage's web shim reads `window.localStorage` with no guard). Escalated to the human, who approved `storage: Platform.OS === 'web' ? undefined : AsyncStorage` - native/Expo Go (the actual target platform) is unaffected.
+- Outstanding: live Expo Go on-device verification (brief Step 4) was not performed by the implementer (no physical device in that environment) - still needs a human to run `npx supabase start` + `npx expo start`, scan the QR code, and confirm the Discover tab shows a connection/RLS error (expected, since there's no login flow yet) rather than the old placeholder text.
+
+Task 6: complete (commit dbbfb0e, review clean, no fix round needed) - this was the last task in the scaffold plan.
