@@ -295,11 +295,12 @@ SUPABASE_SERVICE_ROLE_KEY=<service_role key from `supabase status`>
 
 Also create `.env.example` with the same keys but empty/placeholder values, and commit that one.
 
-`.env.local` is already covered by the stock `.env*.local` pattern in `.gitignore` from Task 1 - no functional change needed. Add a one-line comment next to that pattern documenting the intent, since this file will hold Supabase service_role keys:
+`.env.local` is already covered by the stock `.env*.local` pattern in `.gitignore` from Task 1 - no functional change needed. Add a comment documenting the intent, since this file will hold Supabase service_role keys. Note: `.gitignore` has no inline-comment syntax - a trailing `# ...` on the same line as a pattern becomes part of the pattern itself and breaks the match. The comment must be its own line, above the pattern:
 
 ```
 # local env files
-.env*.local  # includes .env.local, which holds local Supabase URL/keys (see Task 3)
+# .env*.local includes .env.local, which holds local Supabase URL/keys (see Task 3)
+.env*.local
 ```
 
 - [ ] **Step 5: Verify the stack is healthy**

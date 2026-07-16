@@ -31,7 +31,8 @@ yarn-error.*
 *.pem
 
 # local env files
-.env*.local  # includes .env.local, which holds local Supabase URL/keys (see Task 3)
+# .env*.local includes .env.local, which holds local Supabase URL/keys (see Task 3)
+.env*.local
 
 # typescript
 *.tsbuildinfo
