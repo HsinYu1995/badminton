@@ -16,3 +16,9 @@ Task 2: complete (commits 7deeaa7..00eefa3, review clean, no fix round needed)
 - Controller (not implementer) found and fixed a real gitignore bug during review prep: the plan's Task 3 text put a trailing `# comment` on the same line as the `.env*.local` pattern, which is invalid gitignore syntax (no inline comments) and silently un-ignored `.env.local`. Fixed in commit b33b9de, plan text also corrected so it can't be replayed.
 
 Task 3: complete (commits c048e42..b33b9de, review clean after 1 fix round for gitignore inline-comment bug)
+
+## Task 4 review - Minor findings (deferred to final whole-branch review)
+- Migration deviated from the brief's "verbatim" SQL by adding an explicit `grant select, insert, update, delete ... to service_role` block on all six app tables. Root cause: this Supabase CLI version's local stack no longer auto-exposes newly created tables to Data API roles by default (`auto_expose_new_tables` deprecated, see `supabase/config.toml`). Scoped to `service_role` only; `anon`/`authenticated` grants deliberately left for Task 5 to pair with RLS policies.
+- Plan-mandated defect found and fixed: `tests/schema.test.mjs`'s brief-specified `process.exit(0/1)` crashes on this Windows + Node 24 dev machine (libuv assertion from an open `@supabase/supabase-js` handle), forcing exit code 127 regardless of pass/fail. Escalated to the human, who approved switching to `process.exitCode = 0/1` (same semantics, no crash). Plan document's Task 4 AND Task 5 test code blocks both corrected so Task 5 doesn't hit the same bug.
+
+Task 4: complete (commits b88c2a2..ce681d3, review clean after 1 fix round for the exit-code defect)

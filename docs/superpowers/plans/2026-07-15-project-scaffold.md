@@ -391,12 +391,16 @@ async function main() {
 }
 
 main()
-  .then(() => process.exit(0))
+  .then(() => {
+    process.exitCode = 0;
+  })
   .catch((err) => {
     console.error('FAIL:', err.message);
-    process.exit(1);
+    process.exitCode = 1;
   });
 ```
+
+Note: uses `process.exitCode` rather than `process.exit()` deliberately. `@supabase/supabase-js` leaves an open handle after any network call; forcing immediate teardown via `process.exit()` crashes Node with a libuv assertion on Windows + Node 24 (this plan's target dev machine), producing exit code 127 regardless of the test's actual outcome. Setting `process.exitCode` lets Node exit naturally once the event loop drains, preserving the same pass/fail semantics without the crash.
 
 Add to `package.json` scripts:
 
@@ -699,12 +703,16 @@ async function main() {
 }
 
 main()
-  .then(() => process.exit(0))
+  .then(() => {
+    process.exitCode = 0;
+  })
   .catch((err) => {
     console.error('FAIL:', err.message);
-    process.exit(1);
+    process.exitCode = 1;
   });
 ```
+
+Note: uses `process.exitCode` rather than `process.exit()` for the same reason as `tests/schema.test.mjs` (Task 4) - see that task's note.
 
 Add to `package.json` scripts:
 
