@@ -22,3 +22,9 @@ Task 3: complete (commits c048e42..b33b9de, review clean after 1 fix round for g
 - Plan-mandated defect found and fixed: `tests/schema.test.mjs`'s brief-specified `process.exit(0/1)` crashes on this Windows + Node 24 dev machine (libuv assertion from an open `@supabase/supabase-js` handle), forcing exit code 127 regardless of pass/fail. Escalated to the human, who approved switching to `process.exitCode = 0/1` (same semantics, no crash). Plan document's Task 4 AND Task 5 test code blocks both corrected so Task 5 doesn't hit the same bug.
 
 Task 4: complete (commits b88c2a2..ce681d3, review clean after 1 fix round for the exit-code defect)
+
+## Task 5 review - clean, no fix round needed
+- Plan-mandated defect found and fixed: the brief's literal `ratings_insert_participant` policy required the rater to already be an accepted `event_participants` row, but organizers never get one for their own event (only requesters who joined do) - so the brief's own test ("Alice should be able to rate Bob") would fail against the brief's own literal policy. Escalated to the human, who approved allowing the rater to be either an accepted participant OR the event's organizer (ratee-side check unchanged), mirroring the existing `participants_update_by_organizer` pattern. Plan text corrected so it can't be replayed.
+- Also required (per Task 4's own deferred-to-Task-5 note): explicit `grant` statements to `authenticated`, scoped per-table to exactly the operations each table's policies allow, since this local Supabase CLI version doesn't auto-expose new tables to Data API roles.
+
+Task 5: complete (commit 797b9f3, review clean, no fix round needed)

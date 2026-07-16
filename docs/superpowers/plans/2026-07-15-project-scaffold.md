@@ -783,14 +783,22 @@ create policy "participants_update_by_organizer" on public.event_participants
 
 create policy "ratings_select_authenticated" on public.ratings
   for select to authenticated using (true);
--- Both rater and ratee must be accepted participants of the same event - ratings
--- are between people who actually played together, not against arbitrary users.
+-- Rater must be either an accepted participant OR the event's organizer (organizers
+-- never get an event_participants row of their own - only requesters who joined do -
+-- so requiring rater to be an accepted participant would wrongly block an organizer
+-- from rating their own event's participants). Ratee must still be an accepted
+-- participant - ratings are only about people who actually played together, not
+-- against arbitrary users. Mirrors the organizer-check pattern already used by
+-- participants_update_by_organizer above.
 create policy "ratings_insert_participant" on public.ratings
   for insert to authenticated with check (
     auth.uid() = rater_id
-    and exists (
-      select 1 from public.event_participants
-      where event_id = ratings.event_id and user_id = auth.uid() and status = 'accepted'
+    and (
+      auth.uid() = (select organizer_id from public.events where id = ratings.event_id)
+      or exists (
+        select 1 from public.event_participants
+        where event_id = ratings.event_id and user_id = auth.uid() and status = 'accepted'
+      )
     )
     and exists (
       select 1 from public.event_participants
