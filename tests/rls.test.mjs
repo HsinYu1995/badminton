@@ -63,6 +63,24 @@ async function main() {
   const { data: eventAfter } = await admin.from('events').select('title').eq('id', event.id).single();
   assert(eventAfter.title !== 'Hijacked', 'RLS should have blocked Bob from updating Alice\'s event');
 
+  const { error: selfInsertAcceptedErr } = await bob.client
+    .from('event_participants')
+    .insert({ event_id: event.id, user_id: bob.userId, status: 'accepted' });
+  assert(
+    selfInsertAcceptedErr,
+    'RLS should block Bob from inserting himself directly as an accepted participant'
+  );
+  const { data: participantAfterSelfInsert } = await admin
+    .from('event_participants')
+    .select('status')
+    .eq('event_id', event.id)
+    .eq('user_id', bob.userId)
+    .maybeSingle();
+  assert(
+    !participantAfterSelfInsert,
+    'Bob should have no event_participants row after the blocked self-insert-as-accepted attempt'
+  );
+
   const { error: joinErr } = await bob.client
     .from('event_participants')
     .insert({ event_id: event.id, user_id: bob.userId, status: 'pending' });

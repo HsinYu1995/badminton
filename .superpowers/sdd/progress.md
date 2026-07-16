@@ -34,3 +34,14 @@ Task 5: complete (commit 797b9f3, review clean, no fix round needed)
 - Outstanding: live Expo Go on-device verification (brief Step 4) was not performed by the implementer (no physical device in that environment) - still needs a human to run `npx supabase start` + `npx expo start`, scan the QR code, and confirm the Discover tab shows a connection/RLS error (expected, since there's no login flow yet) rather than the old placeholder text.
 
 Task 6: complete (commit dbbfb0e, review clean, no fix round needed) - this was the last task in the scaffold plan.
+
+## Final whole-branch review (range 4b825dc..83060d4)
+- All four prior task-level deviations (Task 3 gitignore, Task 4 exitCode + service_role grants, Task 5 authenticated grants + ratings organizer fix, Task 6 web SSR storage guard) re-verified as correctly and safely implemented.
+- **Critical, fixed:** `participants_insert_own` policy on `event_participants` (`supabase/migrations/20260716201044_rls_policies.sql`) constrained only `user_id`, not `status` - any authenticated user could insert themselves directly as `status: 'accepted'` into any event, bypassing organizer approval entirely (chat and ratings both trust `status = 'accepted'` as their gate). Plan's own literal SQL, plan's own test never covered an INSERT with `status: 'accepted'` (only ever tested `pending` + the separately-blocked UPDATE self-accept path). Human approved the fix: constrain insert to `status = 'pending'`, add regression test. See fix commit and `.superpowers/sdd/task-5-fix-1-report.md`.
+- **Minor, deferred (not fixed, tracked here for a follow-on plan):**
+  - `nearby_venues` grants `execute` to `anon` but `anon` has no `venues` select grant, so the function fails closed for anon anyway - dead/misleading grant, not a security risk (`init_schema.sql`).
+  - `skill_band()` has no explicit `execute` grant (relies on default PUBLIC grant); may not be exposed via PostgREST once `auto_expose_new_tables`-style defaults matter - add explicit grant when a later plan first calls it via RPC.
+  - Bare `example` entry in `.gitignore` (unexplained, broad pattern) - doesn't collide with `.env.example` today but undocumented.
+  - `ratings_insert_participant` allows self-rating (no `rater_id <> ratee_id` guard) - tighten when the ratings feature is actually built.
+- Recommendation noted, not required: add a test asserting the anon/unauthenticated path on `events` errors, to lock Task 6's Discover-screen error-branch contract with a test rather than relying only on manual device verification.
+- Outstanding, not a code defect: Task 6's live Expo Go on-device verification (brief Step 4) still has not been performed - needs a human with a physical device.

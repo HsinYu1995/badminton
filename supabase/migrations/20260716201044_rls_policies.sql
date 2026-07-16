@@ -29,7 +29,7 @@ create policy "events_delete_own" on public.events
 create policy "participants_select_authenticated" on public.event_participants
   for select to authenticated using (true);
 create policy "participants_insert_own" on public.event_participants
-  for insert to authenticated with check (auth.uid() = user_id);
+  for insert to authenticated with check (auth.uid() = user_id and status = 'pending');
 -- Requesters may only withdraw their own request (move it to 'declined'), never
 -- accept it themselves - acceptance is the organizer's call alone. This is split
 -- from the organizer policy below specifically so a requester can't bypass
