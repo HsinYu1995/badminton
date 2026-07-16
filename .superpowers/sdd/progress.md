@@ -1,0 +1,1 @@
+# Progress Ledger - Project Scaffold
