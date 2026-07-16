@@ -18,8 +18,14 @@ games stay balanced and enjoyable for all levels.
   an optional map view toggle.
 
 ### Skill system
-- Self-reported skill tier at signup (e.g. Beginner / Intermediate /
-  Advanced / Pro). No dynamic rating/ELO system in v1.
+- Self-reported skill level at signup: an integer 1-18 following the Taiwan
+  Badminton Promotion Association's (台灣羽球推廣協會) public grading chart,
+  the de facto standard the target community already uses to describe
+  themselves. Displayed to users as one of 7 named bands (新手/初階/初中階/
+  中階/中進階/高階/職業級) derived from the number; the number itself is
+  what's stored and compared for event skill ranges and auto-accept
+  matching. See `docs/adr/0001-skill-level-granularity.md`. No dynamic
+  rating/ELO system in v1.
 
 ### Events
 - Any user can create an event: venue, time window, total headcount, and a
@@ -30,7 +36,7 @@ games stay balanced and enjoyable for all levels.
   running weekly sessions can duplicate a past event as a shortcut).
 
 ### Joining
-- Join requests **auto-accept** if the requester's skill tier falls within
+- Join requests **auto-accept** if the requester's skill level falls within
   the event's posted skill range.
 - Requests outside the skill range go to the organizer for manual
   approve/decline.

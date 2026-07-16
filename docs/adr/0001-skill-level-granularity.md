@@ -1,0 +1,7 @@
+# Skill level uses the Taiwan Badminton Promotion Association's 18-level scale, not a 4-tier scale
+
+`PLAN.md` originally specified a 4-value self-reported skill tier (Beginner/Intermediate/Advanced/Pro). While grilling the scaffold implementation plan's schema design (Task 4), a Google Images search for reference material surfaced the 台灣羽球推廣協會 (Taiwan Badminton Promotion Association) skill grading chart - a widely-referenced standard in the Taiwan pickup-badminton community this app targets (the plan's own test fixtures use Taipei venues). That chart defines 18 numbered levels grouped into 7 named bands (新手/初階/初中階/中階/中進階/高階/職業級).
+
+We adopted the 18-level numeric scale as the stored source of truth (`smallint check (between 1 and 18)`) on `profiles.skill_level` and `events.skill_min`/`skill_max`, with the 7 named bands treated as a display-only derivation, never persisted independently. Considered keeping the 4-tier scale from `PLAN.md`, and considered storing the 7-band name as an enum instead of the number - rejected both because the target community already thinks and matches in these finer-grained terms, and because a numeric scale gives free, correct ordering for range queries and auto-accept matching without any lookup-table joins.
+
+Migrating away from this later means reclassifying every stored profile and event skill value against a different scale - a lossy, user-facing change - so it's recorded here rather than left implicit in the migration SQL.

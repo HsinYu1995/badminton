@@ -21,19 +21,21 @@
 
 ## File Structure
 
+Note: the actual Task 1 scaffold (SDK 57 default template) put app code under `src/app/`, not root `app/` - `src/app/` takes precedence over `app/` and is auto-detected by Expo Router with no extra config (confirmed against the versioned SDK 57 docs). All paths below reflect that.
+
 ```
 badminton/
-  app/
-    _layout.tsx                # Root layout, wraps app in auth-aware navigator
-    (auth)/
-      _layout.tsx               # Auth stack layout
-      login.tsx                 # Placeholder sign-in screen
-    (tabs)/
-      _layout.tsx               # Bottom tab layout (Discover, Create, Profile)
-      index.tsx                 # Discover screen - lists venues from Supabase
-      create.tsx                 # Placeholder create-event screen
-      profile.tsx                 # Placeholder profile screen
   src/
+    app/
+      _layout.tsx                # Root layout, wraps app in auth-aware navigator
+      (auth)/
+        _layout.tsx               # Auth stack layout
+        login.tsx                 # Placeholder sign-in screen
+      (tabs)/
+        _layout.tsx               # Bottom tab layout (Discover, Create, Profile)
+        index.tsx                 # Discover screen - lists events from Supabase
+        create.tsx                 # Placeholder create-event screen
+        profile.tsx                 # Placeholder profile screen
     lib/
       supabase.ts               # Supabase client singleton
   supabase/
@@ -253,7 +255,7 @@ git commit -m "feat: add navigation shell with placeholder screens"
 **Files:**
 - Create: `supabase/config.toml` and related generated files (via CLI)
 - Modify: `package.json` (add `supabase` as a dev dependency)
-- Modify: `.gitignore` (ignore `.env.local`)
+- Modify: `.gitignore` (add a clarifying comment only - see Step 4)
 
 **Interfaces:**
 - Produces: a running local Supabase stack reachable at `http://127.0.0.1:54321` (API) and `postgresql://postgres:postgres@127.0.0.1:54322/postgres` (direct DB), with a local Studio UI.
@@ -293,10 +295,11 @@ SUPABASE_SERVICE_ROLE_KEY=<service_role key from `supabase status`>
 
 Also create `.env.example` with the same keys but empty/placeholder values, and commit that one.
 
-Append to `.gitignore`:
+`.env.local` is already covered by the stock `.env*.local` pattern in `.gitignore` from Task 1 - no functional change needed. Add a one-line comment next to that pattern documenting the intent, since this file will hold Supabase service_role keys:
 
 ```
-.env.local
+# local env files
+.env*.local  # includes .env.local, which holds local Supabase URL/keys (see Task 3)
 ```
 
 - [ ] **Step 5: Verify the stack is healthy**
@@ -325,7 +328,7 @@ git commit -m "chore: initialize local supabase stack"
 
 **Interfaces:**
 - Consumes: local Supabase stack from Task 3 (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`).
-- Produces: tables `public.profiles`, `public.venues`, `public.events`, `public.event_participants`, `public.ratings`, `public.chat_messages`; RPC `public.nearby_venues(lat float8, lng float8, radius_meters float8) returns setof venues`, used by later Discover-screen work for area-based search.
+- Produces: tables `public.profiles`, `public.venues`, `public.events`, `public.event_participants`, `public.ratings`, `public.chat_messages`; RPC `public.nearby_venues(lat float8, lng float8, radius_meters float8) returns setof venues`, used for venue-picking (an organizer choosing or adding a venue near them when creating an event) - not the Discover tab itself. Discover is about finding *events* near you, which needs its own query/RPC joining `events` to `venues` by location; that doesn't exist yet and belongs to whichever later plan builds real Discover-screen search. Also produces `public.skill_band(level smallint) returns text`, the single source of truth mapping a 1-18 skill level to its display band name (see `CONTEXT.md`).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -424,9 +427,29 @@ create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text not null,
   photo_url text,
-  skill_tier text not null check (skill_tier in ('beginner','intermediate','advanced','pro')),
+  -- Nullable: unset until the player self-reports during onboarding (a later
+  -- plan). NULL means "hasn't onboarded yet", not "novice" - a fabricated
+  -- default would silently affect matching before the user ever chose it.
+  skill_level smallint check (skill_level between 1 and 18),
   created_at timestamptz not null default now()
 );
+
+create or replace function public.skill_band(level smallint)
+returns text
+language sql
+immutable
+as $$
+  select case
+    when level between 1 and 3 then 'novice'
+    when level between 4 and 5 then 'beginner'
+    when level between 6 and 7 then 'early_intermediate'
+    when level between 8 and 9 then 'intermediate'
+    when level between 10 and 12 then 'intermediate_advanced'
+    when level between 13 and 15 then 'advanced'
+    when level between 16 and 18 then 'professional'
+    else null
+  end;
+$$;
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -434,11 +457,10 @@ language plpgsql
 security definer set search_path = public
 as $$
 begin
-  insert into public.profiles (id, display_name, skill_tier)
+  insert into public.profiles (id, display_name)
   values (
     new.id,
-    coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1)),
-    'beginner'
+    coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1))
   );
   return new;
 end;
@@ -467,10 +489,11 @@ create table public.events (
   start_time timestamptz not null,
   end_time timestamptz not null,
   headcount_max int not null check (headcount_max > 0),
-  skill_min text not null check (skill_min in ('beginner','intermediate','advanced','pro')),
-  skill_max text not null check (skill_max in ('beginner','intermediate','advanced','pro')),
+  skill_min smallint not null check (skill_min between 1 and 18),
+  skill_max smallint not null check (skill_max between 1 and 18),
   status text not null default 'open' check (status in ('open','cancelled','completed')),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  check (skill_min <= skill_max)
 );
 
 create table public.event_participants (
@@ -611,8 +634,8 @@ async function main() {
       start_time: new Date(Date.now() + 3600_000).toISOString(),
       end_time: new Date(Date.now() + 7200_000).toISOString(),
       headcount_max: 8,
-      skill_min: 'beginner',
-      skill_max: 'advanced',
+      skill_min: 1,
+      skill_max: 18,
     })
     .select()
     .single();
@@ -626,6 +649,22 @@ async function main() {
     .from('event_participants')
     .insert({ event_id: event.id, user_id: bob.userId, status: 'pending' });
   assert(!joinErr, `Bob should be able to request to join: ${joinErr?.message}`);
+
+  const { error: selfAcceptErr } = await bob.client
+    .from('event_participants')
+    .update({ status: 'accepted' })
+    .eq('event_id', event.id)
+    .eq('user_id', bob.userId);
+  const { data: participantAfterSelfAccept } = await admin
+    .from('event_participants')
+    .select('status')
+    .eq('event_id', event.id)
+    .eq('user_id', bob.userId)
+    .single();
+  assert(
+    selfAcceptErr || participantAfterSelfAccept.status !== 'accepted',
+    'RLS should have blocked Bob from accepting his own join request'
+  );
 
   const { error: chatBeforeAcceptErr } = await bob.client
     .from('chat_messages')
@@ -644,7 +683,18 @@ async function main() {
     .insert({ event_id: event.id, sender_id: bob.userId, body: 'hi' });
   assert(!chatAfterAcceptErr, `Bob should be able to chat after being accepted: ${chatAfterAcceptErr?.message}`);
 
-  console.log('PASS: RLS policies enforce ownership and participant-gated chat access');
+  const carol = await createSignedInUser(`carol-${Date.now()}@example.com`);
+  const { error: rateOutsiderErr } = await alice.client
+    .from('ratings')
+    .insert({ event_id: event.id, rater_id: alice.userId, ratee_id: carol.userId, score: 1 });
+  assert(rateOutsiderErr, 'Alice should NOT be able to rate Carol, who never joined this event');
+
+  const { error: rateParticipantErr } = await alice.client
+    .from('ratings')
+    .insert({ event_id: event.id, rater_id: alice.userId, ratee_id: bob.userId, score: 5 });
+  assert(!rateParticipantErr, `Alice should be able to rate Bob, an accepted participant: ${rateParticipantErr?.message}`);
+
+  console.log('PASS: RLS policies enforce ownership and participant-gated chat/rating access');
 }
 
 main()
@@ -710,20 +760,32 @@ create policy "participants_select_authenticated" on public.event_participants
   for select to authenticated using (true);
 create policy "participants_insert_own" on public.event_participants
   for insert to authenticated with check (auth.uid() = user_id);
-create policy "participants_update_by_organizer_or_self" on public.event_participants
-  for update to authenticated using (
-    auth.uid() = user_id
-    or auth.uid() = (select organizer_id from public.events where id = event_id)
-  );
+-- Requesters may only withdraw their own request (move it to 'declined'), never
+-- accept it themselves - acceptance is the organizer's call alone. This is split
+-- from the organizer policy below specifically so a requester can't bypass
+-- organizer approval by updating their own row's status to 'accepted'.
+create policy "participants_update_self_withdraw" on public.event_participants
+  for update to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id and status = 'declined');
+create policy "participants_update_by_organizer" on public.event_participants
+  for update to authenticated
+  using (auth.uid() = (select organizer_id from public.events where id = event_id));
 
 create policy "ratings_select_authenticated" on public.ratings
   for select to authenticated using (true);
+-- Both rater and ratee must be accepted participants of the same event - ratings
+-- are between people who actually played together, not against arbitrary users.
 create policy "ratings_insert_participant" on public.ratings
   for insert to authenticated with check (
     auth.uid() = rater_id
     and exists (
       select 1 from public.event_participants
       where event_id = ratings.event_id and user_id = auth.uid() and status = 'accepted'
+    )
+    and exists (
+      select 1 from public.event_participants
+      where event_id = ratings.event_id and user_id = ratings.ratee_id and status = 'accepted'
     )
   );
 
@@ -758,7 +820,7 @@ Expected: both migrations apply cleanly in order.
 npm run test:rls
 ```
 
-Expected: `PASS: RLS policies enforce ownership and participant-gated chat access`
+Expected: `PASS: RLS policies enforce ownership and participant-gated chat/rating access`
 
 - [ ] **Step 6: Commit**
 
@@ -773,12 +835,12 @@ git commit -m "feat: add row level security policies for core schema"
 
 **Files:**
 - Create: `src/lib/supabase.ts`
-- Modify: `app/(tabs)/index.tsx` (query `venues` on mount instead of static placeholder)
+- Modify: `src/app/(tabs)/index.tsx` (query `events` on mount instead of static placeholder)
 - Modify: `package.json` (add `react-native-url-polyfill`, `@react-native-async-storage/async-storage`)
-- Modify: `app.json` or `app.config.ts` if needed so `EXPO_PUBLIC_*` env vars load (Expo reads `.env.local` automatically by default — no config change expected, verified in Step 4)
+- Modify: `app.json` or `app.config.ts` if needed so `EXPO_PUBLIC_*` env vars load (Expo reads `.env.local` automatically by default — no config change expected, verified in Step 4; confirmed against the versioned SDK 57 docs, including the `.env.local` > `.env` precedence rule)
 
 **Interfaces:**
-- Consumes: `nearby_venues`/`venues` table from Task 4, RLS policies from Task 5, `EXPO_PUBLIC_SUPABASE_URL`/`EXPO_PUBLIC_SUPABASE_ANON_KEY` from `.env.local` (Task 3).
+- Consumes: `events` table from Task 4, RLS policies from Task 5, `EXPO_PUBLIC_SUPABASE_URL`/`EXPO_PUBLIC_SUPABASE_ANON_KEY` from `.env.local` (Task 3).
 - Produces: `export const supabase` from `src/lib/supabase.ts` — the single client instance every future screen/feature imports.
 
 - [ ] **Step 1: Install client dependencies**
@@ -815,10 +877,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 - [ ] **Step 3: Connect the Discover screen to real data**
 
 ```tsx
-// app/(tabs)/index.tsx
+// src/app/(tabs)/index.tsx
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { supabase } from '../../src/lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 export default function DiscoverScreen() {
   const [loading, setLoading] = useState(true);
@@ -827,7 +889,7 @@ export default function DiscoverScreen() {
 
   useEffect(() => {
     supabase
-      .from('venues')
+      .from('events')
       .select('*', { count: 'exact', head: true })
       .then(({ count, error }) => {
         if (error) setError(error.message);
@@ -841,7 +903,7 @@ export default function DiscoverScreen() {
       <Text style={styles.title}>Discover</Text>
       {loading && <ActivityIndicator />}
       {!loading && error && <Text>Connection error: {error}</Text>}
-      {!loading && !error && <Text>Connected to Supabase. {count} venue(s) in the database.</Text>}
+      {!loading && !error && <Text>Connected to Supabase. {count} event(s) in the database.</Text>}
     </View>
   );
 }
@@ -852,7 +914,7 @@ const styles = StyleSheet.create({
 });
 ```
 
-Note: this query relies on `venues_select_authenticated`, which requires an authenticated session. Since there's no login flow yet, expect the error branch ("Connection error: ...") to render in Step 4 below — that error message itself is proof the app is reaching the real Supabase instance and RLS is active, which is what this task verifies. Wiring an authenticated session is the next plan's job.
+Note: this query relies on `events_select_authenticated`, which requires an authenticated session. Since there's no login flow yet, expect the error branch ("Connection error: ...") to render in Step 4 below — that error message itself is proof the app is reaching the real Supabase instance and RLS is active, which is what this task verifies. Wiring an authenticated session is the next plan's job.
 
 - [ ] **Step 4: Verify end-to-end connectivity manually**
 
@@ -862,7 +924,7 @@ Ensure the local Supabase stack is running (`npx supabase status`; if not, `npx 
 npx expo start
 ```
 
-In Expo Go: open the app, land on the Discover tab, and confirm it shows either a venue count or a connection error message reflecting the real network call (not the old static placeholder text). Check the terminal running `npx supabase start` / Docker logs to confirm a request hit the local API if you want to double check.
+In Expo Go: open the app, land on the Discover tab, and confirm it shows either an event count or a connection error message reflecting the real network call (not the old static placeholder text). Check the terminal running `npx supabase start` / Docker logs to confirm a request hit the local API if you want to double check.
 
 - [ ] **Step 5: Commit**
 
@@ -875,6 +937,6 @@ git commit -m "feat: wire supabase client into discover screen"
 
 ## Self-Review Notes
 
-- **Spec coverage:** Task 1-2 cover the RN/Expo/navigation scaffold from `PLAN.md`'s Technical Architecture section. Task 3 covers local-first Supabase setup per the user's explicit decision. Task 4 covers the PostGIS-backed schema (profiles, venues, events, event_participants, ratings, chat_messages) matching every entity named in `PLAN.md`. Task 5 covers RLS matching the trust/safety and ownership rules implied by the product plan (organizer-only event edits, accepted-participants-only chat). Task 6 proves the app and backend are actually connected. Auth (Apple/Google), the create-event form, join/accept UI, chat UI, and ratings UI are explicitly out of scope for this scaffold plan and belong to follow-on plans.
+- **Spec coverage:** Task 1-2 cover the RN/Expo/navigation scaffold from `PLAN.md`'s Technical Architecture section (note: actual Task 1 output uses `src/app/`, not root `app/` - see File Structure note above). Task 3 covers local-first Supabase setup per the user's explicit decision. Task 4 covers the PostGIS-backed schema (profiles, venues, events, event_participants, ratings, chat_messages) matching every entity named in `PLAN.md`, plus the skill-level system resolved in `docs/adr/0001-skill-level-granularity.md`. Task 5 covers RLS matching the trust/safety and ownership rules implied by the product plan (organizer-only event edits, organizer-only join acceptance, accepted-participants-only chat and ratings). Task 6 proves the app and backend are actually connected, querying `events` (what Discover actually shows) rather than `venues`. Auth (Apple/Google), the create-event form, join/accept UI, chat UI, and ratings UI are explicitly out of scope for this scaffold plan and belong to follow-on plans.
 - **Placeholder scan:** all SQL, TypeScript, and test code above is complete and runnable as written; no TBD/TODO markers.
-- **Type consistency:** `skill_tier`/`skill_min`/`skill_max` all use the same four-value check constraint (`beginner`/`intermediate`/`advanced`/`pro`) across `profiles` and `events`. `event_participants.status` (`pending`/`accepted`/`declined`) is used consistently by both the RLS policies (Task 5) and the manual join-request flow it gates. The `nearby_venues` RPC signature (`lat`, `lng`, `radius_meters`, all `double precision`) matches its call site in `tests/schema.test.mjs`.
+- **Type consistency:** `profiles.skill_level`, `events.skill_min`, `events.skill_max` are all `smallint check (between 1 and 18)`, per `CONTEXT.md`'s Skill level / Skill band terms; `events` additionally enforces `skill_min <= skill_max`. `skill_level` is nullable on `profiles` (unset until self-reported) but `skill_min`/`skill_max` are NOT NULL on `events` (an organizer must always post a range). `event_participants.status` (`pending`/`accepted`/`declined`) is used consistently by both the RLS policies (Task 5, split into organizer-only accept/decline vs self-only withdraw) and the manual join-request flow it gates. The `nearby_venues` RPC signature (`lat`, `lng`, `radius_meters`, all `double precision`) matches its call site in `tests/schema.test.mjs`.
