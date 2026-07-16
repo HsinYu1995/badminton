@@ -40,7 +40,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test:schema": "node --env-file=.env.local tests/schema.test.mjs"
+    "test:schema": "node --env-file=.env.local tests/schema.test.mjs",
+    "test:rls": "node --env-file=.env.local tests/rls.test.mjs"
   },
   "private": true
 }
