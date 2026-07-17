@@ -49,3 +49,5 @@ Task 6: complete (commit dbbfb0e, review clean, no fix round needed) - this was 
 ## Google sign-in plan (docs/superpowers/plans/2026-07-17-google-sign-in.md)
 
 Task 1: complete (commit 6428d4d) - Google Cloud OAuth client created by the human (out of band, credentials passed directly to the implementer, never echoed back into chat); config.toml/.env.example/.env.local wired up; verified `"google":true` via /auth/v1/settings. Skipped a separate reviewer dispatch for this one - diff is a 10-line config addition matching the brief verbatim, controller verified it directly against the brief.
+
+Task 2: complete (commit 3143c83, review clean, no fix round needed) - minor deferred: no dedicated test for the `name`-only (no `full_name`) fallback branch, or for display_name-takes-priority-when-all-present; both pre-existing precedence, not newly introduced.
