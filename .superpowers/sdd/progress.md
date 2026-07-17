@@ -45,3 +45,7 @@ Task 6: complete (commit dbbfb0e, review clean, no fix round needed) - this was 
   - `ratings_insert_participant` allows self-rating (no `rater_id <> ratee_id` guard) - tighten when the ratings feature is actually built.
 - Recommendation noted, not required: add a test asserting the anon/unauthenticated path on `events` errors, to lock Task 6's Discover-screen error-branch contract with a test rather than relying only on manual device verification.
 - Outstanding, not a code defect: Task 6's live Expo Go on-device verification (brief Step 4) still has not been performed - needs a human with a physical device.
+
+## Google sign-in plan (docs/superpowers/plans/2026-07-17-google-sign-in.md)
+
+Task 1: complete (commit 6428d4d) - Google Cloud OAuth client created by the human (out of band, credentials passed directly to the implementer, never echoed back into chat); config.toml/.env.example/.env.local wired up; verified `"google":true` via /auth/v1/settings. Skipped a separate reviewer dispatch for this one - diff is a 10-line config addition matching the brief verbatim, controller verified it directly against the brief.
