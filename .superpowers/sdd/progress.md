@@ -51,3 +51,17 @@ Task 6: complete (commit dbbfb0e, review clean, no fix round needed) - this was 
 Task 1: complete (commit 6428d4d) - Google Cloud OAuth client created by the human (out of band, credentials passed directly to the implementer, never echoed back into chat); config.toml/.env.example/.env.local wired up; verified `"google":true` via /auth/v1/settings. Skipped a separate reviewer dispatch for this one - diff is a 10-line config addition matching the brief verbatim, controller verified it directly against the brief.
 
 Task 2: complete (commit 3143c83, review clean, no fix round needed) - minor deferred: no dedicated test for the `name`-only (no `full_name`) fallback branch, or for display_name-takes-priority-when-all-present; both pre-existing precedence, not newly introduced.
+
+## Task 3 review - clean, no fix round needed
+- Diff is byte-for-byte match to the brief's Step 2/3 code blocks (`src/lib/auth-context.tsx`, `src/app/_layout.tsx`), stays within all global constraints (Google-only, browser-based OAuth, existing AsyncStorage persistence, existing scheme, no em dashes), touches only the 4 files the brief names.
+- Minor deferred (inherited from the brief's own code, not an implementer deviation): `createSessionFromUrl` silently no-ops if `access_token`/`refresh_token` are missing from a "success" redirect, with no error surfaced - Task 4's UI should be aware its loading state may never resolve to signed-in with no error message in that edge case.
+- Outstanding, not a code defect: on-device boot verification not performed (no Android emulator/device in this environment) - flagged for follow-up before shipping, same as Task 6 of the prior scaffold plan.
+
+Task 3: complete (commits 52feea8..af1fe00, review clean, no fix round needed)
+
+## Task 4 review - Important finding, fixed in 1 round
+- Plan-mandated defect found and fixed: the brief's literal Step 2 code left `signOut()` uncaught on the profile screen's "Sign out" button, unlike the sibling login screen's `signInWithGoogle()` which the brief's own Step 1 code wraps in try/catch. A thrown `signOut()` error (e.g. offline) produced an unhandled promise rejection with zero user feedback. Human approved deviating from the plan's literal text; fixed by mirroring login.tsx's error-state/try-catch/rendered-error pattern in profile.tsx (commit 83a0766). Re-review confirmed the fix, no scope creep.
+- Minor, deferred (not fixed, tracked here for a follow-on pass): neither sign-in nor sign-out button shows a loading state or disables itself while its async call is in flight (rapid double-tap risk, low impact); login.tsx surfaces raw `err.message` to the user rather than a friendlier message (matches brief exactly, UX polish only).
+- Outstanding, not a code defect: the actual Google OAuth click-through (system browser consent screen -> redirect -> Discover tab -> sign-out round-trip) has not been performed - this is the single remaining manual verification step across the entire plan, needs a human with a device/emulator and a real Google account.
+
+Task 4: complete (commits af1fe00..83a0766, review clean after 1 fix round for the sign-out error-handling defect) - this was the last task in the Google sign-in plan.
