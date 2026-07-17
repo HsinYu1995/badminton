@@ -20,11 +20,21 @@ async function createSessionFromUrl(url: string) {
   const { params, errorCode } = QueryParams.getQueryParams(url);
   if (errorCode) throw new Error(errorCode);
 
-  const { access_token, refresh_token } = params;
-  if (!access_token || !refresh_token) return;
+  const { access_token, refresh_token, code } = params;
 
-  const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-  if (error) throw error;
+  if (access_token && refresh_token) {
+    const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+    if (error) throw error;
+    return;
+  }
+
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) throw error;
+    return;
+  }
+
+  throw new Error('No access/refresh tokens or auth code found in redirect URL.');
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
