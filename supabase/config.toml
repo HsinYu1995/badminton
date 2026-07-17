@@ -343,7 +343,13 @@ enabled = true
 client_id = "547781685193-4co69bg2rf8tki1c53stevkiqs5t2fdi.apps.googleusercontent.com"
 # DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
 secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
-redirect_uri = ""
+# Overrides the default (127.0.0.1) callback URL. Set to 10.0.2.2, the Android emulator's alias
+# for the host machine's localhost, since 127.0.0.1 inside the emulator refers to the emulator
+# itself - Google's post-consent redirect to 127.0.0.1:54321/auth/v1/callback was unreachable
+# ("This site can't be reached") from the emulator's browser. Must also be registered as an
+# Authorized redirect URI in the Google Cloud OAuth client (alongside the 127.0.0.1 one, for
+# web/iOS simulator testing).
+redirect_uri = "http://10.0.2.2:54321/auth/v1/callback"
 url = ""
 # Required for local sign in with Google auth (see the same field's comment under [auth.external.apple]).
 skip_nonce_check = true
