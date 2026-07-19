@@ -164,6 +164,15 @@ site_url = "http://127.0.0.1:3000"
 # `**` matches any sequence including separators. Needed here for the app's OAuth redirect,
 # which resolves to a custom-scheme URI (`badminton://...`) in dev-client/standalone builds
 # or an `exp://host:port/...` URI in Expo Go - never an http(s)://127.0.0.1:3000 URL.
+#
+# NOTE: this allow-list is NOT consulted for a redirect_to whose host is a literal IP address
+# (e.g. `exp://10.0.0.194:8081`, the default Expo Go LAN address). GoTrue's redirect validator
+# (internal/utilities/request.go IsRedirectURLValid) short-circuits on IP-literal hosts and only
+# accepts them if `net.IP.IsLoopback()` is true, regardless of any glob pattern here - Google
+# sign-in silently falls back to `site_url` for non-loopback IP hosts even when this list contains
+# an exact matching entry. Run Metro bound to loopback instead of the LAN (see package.json /
+# dev docs for `--host localhost` + `adb reverse tcp:8081 tcp:8081`) so `makeRedirectUri()`
+# resolves to `exp://127.0.0.1:8081`, which always passes.
 additional_redirect_urls = ["https://127.0.0.1:3000", "badminton://*", "badminton://**", "exp://**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
