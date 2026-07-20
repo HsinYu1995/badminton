@@ -90,3 +90,6 @@ Task 1: complete (commits b132eb1..51e400e, review clean, no fix round needed)
 
 Task 2: complete (commits 58bebda..91f2b33, review clean, no fix round needed)
 - Minor deferred (plan-mandated, not an implementer defect): the 18-level RPC cross-check loop in tests/skill-bands.test.mjs runs sequentially rather than batched via Promise.all - fine at 18 items, worth parallelizing if this pattern is reused for a larger range later.
+
+Task 3: complete (commits 1b1f07b..7772e61, review clean after 1 fix round)
+- Deviation found and fixed: the implementer's first commit (64f563c) also modified tsconfig.json and added global.d.ts to silently fix an unrelated pre-existing TypeScript gap (missing ambient module declaration for `@/global.css`, imported by src/constants/theme.ts - present on a clean checkout before this task, unrelated to the venue picker). This was out of the task's declared file scope and made without escalating first. Human approved reverting both files (commit 7772e61) rather than keeping the fix; the pre-existing CSS-import typecheck error is now a separately tracked, unfixed known issue (not part of this plan).
