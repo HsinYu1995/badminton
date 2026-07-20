@@ -14,6 +14,7 @@
 - Venue selection is a plain list + an "Add new venue" row - no search/filter box.
 - Skill range is chosen as two of the 7 named bands (novice, beginner, early_intermediate, intermediate, intermediate_advanced, advanced, professional), converted to numeric `skill_min`/`skill_max` for storage. The band-to-range mapping in `src/lib/skill-bands.ts` must stay in sync with `public.skill_band()`'s SQL `case` statement in `supabase/migrations/20260716084150_init_schema.sql`.
 - Date/start-time/duration (in minutes) are used instead of separate start/end time pickers - `end_time` is always computed, so an organizer can never enter an end time before the start time.
+- Both `DateTimePicker` instances pass `presentation="inline"` explicitly - `@expo/ui/community/datetime-picker`'s own type declarations document that Android's default `presentation` is `'dialog'` (opens a modal on mount, expects the caller to unmount it after), which contradicts this form's static inline layout. Passing `presentation="inline"` (plus `display="spinner"`, since Android has no wheel-style inline picker under Material 3) avoids that dialog-on-mount behavior.
 - Fee is a plain non-negative whole number (0 = free), labeled "NT$" in the UI, no currency picker - `events.fee` is an `integer` column (Task 1), so client validation must reject non-integer input, not just negative input.
 - After a successful create, navigate to the Discover tab (`/`) - no event-detail screen exists yet.
 - Testing philosophy: end-to-end tests against the real local Supabase stack (real Postgres, real RLS) for anything that doesn't require a device sensor or a rendered UI. The location-permission flow and the actual on-device form walkthrough are manual verification steps, not automated tests - there is no component-test/render harness in this repo.
@@ -748,10 +749,22 @@ export default function CreateEventScreen() {
       <TextInput style={styles.input} value={feeText} onChangeText={setFeeText} keyboardType="number-pad" />
 
       <Text style={styles.label}>Date</Text>
-      <DateTimePicker mode="date" value={date} onValueChange={(_event, newDate) => setDate(newDate)} />
+      <DateTimePicker
+        mode="date"
+        value={date}
+        onValueChange={(_event, newDate) => setDate(newDate)}
+        presentation="inline"
+        display="spinner"
+      />
 
       <Text style={styles.label}>Start time</Text>
-      <DateTimePicker mode="time" value={startTime} onValueChange={(_event, newTime) => setStartTime(newTime)} />
+      <DateTimePicker
+        mode="time"
+        value={startTime}
+        onValueChange={(_event, newTime) => setStartTime(newTime)}
+        presentation="inline"
+        display="spinner"
+      />
 
       <Text style={styles.label}>Duration (minutes)</Text>
       <TextInput
