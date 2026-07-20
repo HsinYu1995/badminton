@@ -52,8 +52,8 @@ export default function CreateEventScreen() {
       return;
     }
     const fee = feeText.trim() === '' ? 0 : Number(feeText);
-    if (!Number.isFinite(fee) || fee < 0) {
-      setSubmitError('Fee must be zero or a positive number.');
+    if (!Number.isInteger(fee) || fee < 0) {
+      setSubmitError('Fee must be zero or a positive whole number.');
       return;
     }
     const durationMinutes = parseInt(durationMinutesText, 10);
@@ -125,7 +125,7 @@ export default function CreateEventScreen() {
       />
 
       <Text style={styles.label}>Fee (NT$)</Text>
-      <TextInput style={styles.input} value={feeText} onChangeText={setFeeText} keyboardType="decimal-pad" />
+      <TextInput style={styles.input} value={feeText} onChangeText={setFeeText} keyboardType="number-pad" />
 
       <Text style={styles.label}>Date</Text>
       <DateTimePicker mode="date" value={date} onValueChange={(_event, newDate) => setDate(newDate)} />
