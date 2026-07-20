@@ -611,7 +611,7 @@ git commit -m "feat: add venue picker with current-location venue creation"
 - Modify: `src/app/(tabs)/create.tsx`
 
 **Interfaces:**
-- Consumes: `VenuePicker`, `type Venue` (Task 3, `src/components/venue-picker.tsx`); `SKILL_BANDS`, `type SkillBandId` (Task 2, `src/lib/skill-bands.ts`); `useAuth()` -> `session.user.id` (`src/lib/auth-context.tsx`); `supabase` (`src/lib/supabase.ts`); `useRouter` (`expo-router`); `DateTimePicker` (`@expo/ui/community/datetime-picker`); `Picker`, `PickerItem` (`@expo/ui/community/picker`).
+- Consumes: `VenuePicker`, `type Venue` (Task 3, `src/components/venue-picker.tsx`); `SKILL_BANDS`, `type SkillBandId` (Task 2, `src/lib/skill-bands.ts`); `useAuth()` -> `session.user.id` (`src/lib/auth-context.tsx`); `supabase` (`src/lib/supabase.ts`); `useRouter` (`expo-router`); `DateTimePicker` (`@expo/ui/community/datetime-picker`); `Picker` (`@expo/ui/community/picker`, options rendered via its static `Picker.Item` property - the package has no separate `PickerItem` named export).
 - Produces: the finished, human-usable Create Event screen. Nothing later in this plan consumes this task's output directly - Task 5 exercises it manually.
 
 - [ ] **Step 1: Build the form**
@@ -622,7 +622,7 @@ import { useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { DateTimePicker } from '@expo/ui/community/datetime-picker';
-import { Picker, PickerItem } from '@expo/ui/community/picker';
+import { Picker } from '@expo/ui/community/picker';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
@@ -764,14 +764,14 @@ export default function CreateEventScreen() {
       <Text style={styles.label}>Skill range: from</Text>
       <Picker selectedValue={fromBandId} onValueChange={(value) => setFromBandId(value as SkillBandId)}>
         {SKILL_BANDS.map((band) => (
-          <PickerItem key={band.id} label={band.label} value={band.id} />
+          <Picker.Item key={band.id} label={band.label} value={band.id} />
         ))}
       </Picker>
 
       <Text style={styles.label}>Skill range: to</Text>
       <Picker selectedValue={toBandId} onValueChange={(value) => setToBandId(value as SkillBandId)}>
         {SKILL_BANDS.map((band) => (
-          <PickerItem key={band.id} label={band.label} value={band.id} />
+          <Picker.Item key={band.id} label={band.label} value={band.id} />
         ))}
       </Picker>
 
