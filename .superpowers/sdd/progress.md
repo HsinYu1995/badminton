@@ -87,3 +87,6 @@ Google sign-in plan: complete, including the manual on-device verification step 
 
 Task 1: complete (commits b132eb1..51e400e, review clean, no fix round needed)
 - Minor deferred (plan-mandated, not an implementer defect): negative-fee and forged-organizer test assertions only check that an error occurred, not the specific error class (check-constraint violation vs RLS denial). Copied verbatim from the plan brief.
+
+Task 2: complete (commits 58bebda..91f2b33, review clean, no fix round needed)
+- Minor deferred (plan-mandated, not an implementer defect): the 18-level RPC cross-check loop in tests/skill-bands.test.mjs runs sequentially rather than batched via Promise.all - fine at 18 items, worth parallelizing if this pattern is reused for a larger range later.
