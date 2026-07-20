@@ -46,7 +46,8 @@
     "lint": "expo lint",
     "test:schema": "node --env-file=.env.local tests/schema.test.mjs",
     "test:rls": "node --env-file=.env.local tests/rls.test.mjs",
-    "test:auth-profile": "node --env-file=.env.local tests/auth-profile-metadata.test.mjs"
+    "test:auth-profile": "node --env-file=.env.local tests/auth-profile-metadata.test.mjs",
+    "test:create-event": "node --env-file=.env.local tests/create-event.test.mjs"
   },
   "private": true
 }
