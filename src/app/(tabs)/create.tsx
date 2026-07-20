@@ -128,10 +128,10 @@ export default function CreateEventScreen() {
       <TextInput style={styles.input} value={feeText} onChangeText={setFeeText} keyboardType="number-pad" />
 
       <Text style={styles.label}>Date</Text>
-      <DateTimePicker mode="date" value={date} onValueChange={(_event, newDate) => setDate(newDate)} />
+      <DateTimePicker mode="date" value={date} onValueChange={(_event, newDate) => setDate(newDate)} presentation="inline" display="spinner" />
 
       <Text style={styles.label}>Start time</Text>
-      <DateTimePicker mode="time" value={startTime} onValueChange={(_event, newTime) => setStartTime(newTime)} />
+      <DateTimePicker mode="time" value={startTime} onValueChange={(_event, newTime) => setStartTime(newTime)} presentation="inline" display="spinner" />
 
       <Text style={styles.label}>Duration (minutes)</Text>
       <TextInput
