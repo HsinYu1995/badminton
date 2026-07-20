@@ -14,7 +14,7 @@
 - Venue selection is a plain list + an "Add new venue" row - no search/filter box.
 - Skill range is chosen as two of the 7 named bands (novice, beginner, early_intermediate, intermediate, intermediate_advanced, advanced, professional), converted to numeric `skill_min`/`skill_max` for storage. The band-to-range mapping in `src/lib/skill-bands.ts` must stay in sync with `public.skill_band()`'s SQL `case` statement in `supabase/migrations/20260716084150_init_schema.sql`.
 - Date/start-time/duration (in minutes) are used instead of separate start/end time pickers - `end_time` is always computed, so an organizer can never enter an end time before the start time.
-- Fee is a plain non-negative number (0 = free), labeled "NT$" in the UI, no currency picker.
+- Fee is a plain non-negative whole number (0 = free), labeled "NT$" in the UI, no currency picker - `events.fee` is an `integer` column (Task 1), so client validation must reject non-integer input, not just negative input.
 - After a successful create, navigate to the Discover tab (`/`) - no event-detail screen exists yet.
 - Testing philosophy: end-to-end tests against the real local Supabase stack (real Postgres, real RLS) for anything that doesn't require a device sensor or a rendered UI. The location-permission flow and the actual on-device form walkthrough are manual verification steps, not automated tests - there is no component-test/render harness in this repo.
 - No em dashes in any generated docs, comments, or UI copy - use plain dashes.
@@ -672,8 +672,8 @@ export default function CreateEventScreen() {
       return;
     }
     const fee = feeText.trim() === '' ? 0 : Number(feeText);
-    if (!Number.isFinite(fee) || fee < 0) {
-      setSubmitError('Fee must be zero or a positive number.');
+    if (!Number.isInteger(fee) || fee < 0) {
+      setSubmitError('Fee must be zero or a positive whole number.');
       return;
     }
     const durationMinutes = parseInt(durationMinutesText, 10);
@@ -745,7 +745,7 @@ export default function CreateEventScreen() {
       />
 
       <Text style={styles.label}>Fee (NT$)</Text>
-      <TextInput style={styles.input} value={feeText} onChangeText={setFeeText} keyboardType="decimal-pad" />
+      <TextInput style={styles.input} value={feeText} onChangeText={setFeeText} keyboardType="number-pad" />
 
       <Text style={styles.label}>Date</Text>
       <DateTimePicker mode="date" value={date} onValueChange={(_event, newDate) => setDate(newDate)} />
