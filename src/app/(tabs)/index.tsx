@@ -105,7 +105,7 @@ export default function DiscoverScreen() {
       {locationEnabled && (
         <View style={styles.distanceFilter}>
           <Text style={styles.label}>Max distance</Text>
-          <Picker selectedValue={String(radiusKm)} onValueChange={handleRadiusChange}>
+          <Picker key={radiusKm} selectedValue={String(radiusKm)} onValueChange={handleRadiusChange}>
             {RADIUS_OPTIONS_KM.map((km) => (
               <Picker.Item key={km} label={`${km} km`} value={String(km)} />
             ))}
