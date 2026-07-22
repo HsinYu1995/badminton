@@ -121,3 +121,8 @@ Task 1: complete (commit 595d551, review clean, no fix round needed)
 Task 2: complete (commit 6aadc0c, review clean, no fix round needed)
 
 Task 3: complete (commit 6ed4ed6, review clean, no fix round needed)
+
+Task 4: complete (commits 0c7776f..af6457e, review clean after 1 fix round)
+- Important, fixed: a failed (not merely denied) location fetch left the Discover screen permanently blank instead of falling back to the unfiltered `discover_events()` call, violating the plan's explicit "never block the list" constraint - affected all three call sites (mount effect, Enable button, radius picker change). Fixed by having `fetchWithLocation`'s catch reset `locationEnabled` to false, set `locationError`, and fall back to `fetchWithoutLocation()` (commit af6457e).
+- Important, fixed in the same commit: no request-ordering guard existed, so rapid radius-picker changes could let a stale response overwrite a newer one. Fixed with a shared `requestIdRef` monotonic counter checked before every state mutation in both fetch functions.
+- Minor deferred (not fixed, tracked here for a follow-on pass): the race-safety of the nested staleness checks (outer `fetchWithLocation` requestId vs. the inner one `fetchWithoutLocation` mints for itself) is correct but non-obvious - worth a code comment for future maintainers. Also noted: on a location/RPC failure, `events` transitions through `null` twice in a row before the fallback list lands (harmless spinner flicker), and `handleEnableLocation`'s own try/catch is now dead code for the `fetchWithLocation` path since that function no longer rethrows.
