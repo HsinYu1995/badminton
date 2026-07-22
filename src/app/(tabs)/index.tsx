@@ -1,5 +1,5 @@
 // src/app/(tabs)/index.tsx
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import * as Location from 'expo-location';
 import { Picker } from '@expo/ui/community/picker';
@@ -16,8 +16,10 @@ export default function DiscoverScreen() {
   const [radiusKm, setRadiusKm] = useState(DEFAULT_RADIUS_KM);
   const [enablingLocation, setEnablingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   async function fetchWithLocation(km: number) {
+    const requestId = ++requestIdRef.current;
     setEvents(null);
     setFetchError(null);
     try {
@@ -27,18 +29,24 @@ export default function DiscoverScreen() {
         lng: position.coords.longitude,
         radius_meters: km * 1000,
       });
+      if (requestId !== requestIdRef.current) return;
       if (error) throw error;
       setEvents(data ?? []);
       setLocationEnabled(true);
     } catch (err) {
-      setFetchError(err instanceof Error ? err.message : 'Could not load events.');
+      if (requestId !== requestIdRef.current) return;
+      setLocationError(err instanceof Error ? err.message : 'Could not get current location.');
+      setLocationEnabled(false);
+      await fetchWithoutLocation();
     }
   }
 
   async function fetchWithoutLocation() {
+    const requestId = ++requestIdRef.current;
     setEvents(null);
     setFetchError(null);
     const { data, error } = await supabase.rpc('discover_events', {});
+    if (requestId !== requestIdRef.current) return;
     if (error) setFetchError(error.message);
     else setEvents(data ?? []);
   }
