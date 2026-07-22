@@ -14,6 +14,7 @@
     "expo-glass-effect": "~57.0.1",
     "expo-image": "~57.0.1",
     "expo-linking": "~57.0.3",
+    "expo-location": "~57.0.5",
     "expo-router": "~57.0.6",
     "expo-splash-screen": "~57.0.4",
     "expo-status-bar": "~57.0.1",
@@ -46,7 +47,9 @@
     "lint": "expo lint",
     "test:schema": "node --env-file=.env.local tests/schema.test.mjs",
     "test:rls": "node --env-file=.env.local tests/rls.test.mjs",
-    "test:auth-profile": "node --env-file=.env.local tests/auth-profile-metadata.test.mjs"
+    "test:auth-profile": "node --env-file=.env.local tests/auth-profile-metadata.test.mjs",
+    "test:create-event": "node --env-file=.env.local tests/create-event.test.mjs",
+    "test:skill-bands": "node --env-file=.env.local tests/skill-bands.test.mjs"
   },
   "private": true
 }

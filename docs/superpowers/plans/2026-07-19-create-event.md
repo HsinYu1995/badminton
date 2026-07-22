@@ -14,7 +14,8 @@
 - Venue selection is a plain list + an "Add new venue" row - no search/filter box.
 - Skill range is chosen as two of the 7 named bands (novice, beginner, early_intermediate, intermediate, intermediate_advanced, advanced, professional), converted to numeric `skill_min`/`skill_max` for storage. The band-to-range mapping in `src/lib/skill-bands.ts` must stay in sync with `public.skill_band()`'s SQL `case` statement in `supabase/migrations/20260716084150_init_schema.sql`.
 - Date/start-time/duration (in minutes) are used instead of separate start/end time pickers - `end_time` is always computed, so an organizer can never enter an end time before the start time.
-- Fee is a plain non-negative number (0 = free), labeled "NT$" in the UI, no currency picker.
+- Both `DateTimePicker` instances pass `presentation="inline"` explicitly - `@expo/ui/community/datetime-picker`'s own type declarations document that Android's default `presentation` is `'dialog'` (opens a modal on mount, expects the caller to unmount it after), which contradicts this form's static inline layout. Passing `presentation="inline"` (plus `display="spinner"`, since Android has no wheel-style inline picker under Material 3) avoids that dialog-on-mount behavior.
+- Fee is a plain non-negative whole number (0 = free), labeled "NT$" in the UI, no currency picker - `events.fee` is an `integer` column (Task 1), so client validation must reject non-integer input, not just negative input.
 - After a successful create, navigate to the Discover tab (`/`) - no event-detail screen exists yet.
 - Testing philosophy: end-to-end tests against the real local Supabase stack (real Postgres, real RLS) for anything that doesn't require a device sensor or a rendered UI. The location-permission flow and the actual on-device form walkthrough are manual verification steps, not automated tests - there is no component-test/render harness in this repo.
 - No em dashes in any generated docs, comments, or UI copy - use plain dashes.
@@ -611,7 +612,7 @@ git commit -m "feat: add venue picker with current-location venue creation"
 - Modify: `src/app/(tabs)/create.tsx`
 
 **Interfaces:**
-- Consumes: `VenuePicker`, `type Venue` (Task 3, `src/components/venue-picker.tsx`); `SKILL_BANDS`, `type SkillBandId` (Task 2, `src/lib/skill-bands.ts`); `useAuth()` -> `session.user.id` (`src/lib/auth-context.tsx`); `supabase` (`src/lib/supabase.ts`); `useRouter` (`expo-router`); `DateTimePicker` (`@expo/ui/community/datetime-picker`); `Picker`, `PickerItem` (`@expo/ui/community/picker`).
+- Consumes: `VenuePicker`, `type Venue` (Task 3, `src/components/venue-picker.tsx`); `SKILL_BANDS`, `type SkillBandId` (Task 2, `src/lib/skill-bands.ts`); `useAuth()` -> `session.user.id` (`src/lib/auth-context.tsx`); `supabase` (`src/lib/supabase.ts`); `useRouter` (`expo-router`); `DateTimePicker` (`@expo/ui/community/datetime-picker`); `Picker` (`@expo/ui/community/picker`, options rendered via its static `Picker.Item` property - the package has no separate `PickerItem` named export).
 - Produces: the finished, human-usable Create Event screen. Nothing later in this plan consumes this task's output directly - Task 5 exercises it manually.
 
 - [ ] **Step 1: Build the form**
@@ -622,7 +623,7 @@ import { useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { DateTimePicker } from '@expo/ui/community/datetime-picker';
-import { Picker, PickerItem } from '@expo/ui/community/picker';
+import { Picker } from '@expo/ui/community/picker';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
@@ -672,8 +673,8 @@ export default function CreateEventScreen() {
       return;
     }
     const fee = feeText.trim() === '' ? 0 : Number(feeText);
-    if (!Number.isFinite(fee) || fee < 0) {
-      setSubmitError('Fee must be zero or a positive number.');
+    if (!Number.isInteger(fee) || fee < 0) {
+      setSubmitError('Fee must be zero or a positive whole number.');
       return;
     }
     const durationMinutes = parseInt(durationMinutesText, 10);
@@ -745,13 +746,25 @@ export default function CreateEventScreen() {
       />
 
       <Text style={styles.label}>Fee (NT$)</Text>
-      <TextInput style={styles.input} value={feeText} onChangeText={setFeeText} keyboardType="decimal-pad" />
+      <TextInput style={styles.input} value={feeText} onChangeText={setFeeText} keyboardType="number-pad" />
 
       <Text style={styles.label}>Date</Text>
-      <DateTimePicker mode="date" value={date} onValueChange={(_event, newDate) => setDate(newDate)} />
+      <DateTimePicker
+        mode="date"
+        value={date}
+        onValueChange={(_event, newDate) => setDate(newDate)}
+        presentation="inline"
+        display="spinner"
+      />
 
       <Text style={styles.label}>Start time</Text>
-      <DateTimePicker mode="time" value={startTime} onValueChange={(_event, newTime) => setStartTime(newTime)} />
+      <DateTimePicker
+        mode="time"
+        value={startTime}
+        onValueChange={(_event, newTime) => setStartTime(newTime)}
+        presentation="inline"
+        display="spinner"
+      />
 
       <Text style={styles.label}>Duration (minutes)</Text>
       <TextInput
@@ -764,14 +777,14 @@ export default function CreateEventScreen() {
       <Text style={styles.label}>Skill range: from</Text>
       <Picker selectedValue={fromBandId} onValueChange={(value) => setFromBandId(value as SkillBandId)}>
         {SKILL_BANDS.map((band) => (
-          <PickerItem key={band.id} label={band.label} value={band.id} />
+          <Picker.Item key={band.id} label={band.label} value={band.id} />
         ))}
       </Picker>
 
       <Text style={styles.label}>Skill range: to</Text>
       <Picker selectedValue={toBandId} onValueChange={(value) => setToBandId(value as SkillBandId)}>
         {SKILL_BANDS.map((band) => (
-          <PickerItem key={band.id} label={band.label} value={band.id} />
+          <Picker.Item key={band.id} label={band.label} value={band.id} />
         ))}
       </Picker>
 
