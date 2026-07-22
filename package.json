@@ -49,7 +49,8 @@
     "test:rls": "node --env-file=.env.local tests/rls.test.mjs",
     "test:auth-profile": "node --env-file=.env.local tests/auth-profile-metadata.test.mjs",
     "test:create-event": "node --env-file=.env.local tests/create-event.test.mjs",
-    "test:skill-bands": "node --env-file=.env.local tests/skill-bands.test.mjs"
+    "test:skill-bands": "node --env-file=.env.local tests/skill-bands.test.mjs",
+    "test:discover-events": "node --env-file=.env.local tests/discover-events.test.mjs"
   },
   "private": true
 }
