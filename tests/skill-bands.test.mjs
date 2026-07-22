@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import assert from 'node:assert';
-import { SKILL_BANDS } from '../src/lib/skill-bands.ts';
+import { SKILL_BANDS, skillBandForLevel } from '../src/lib/skill-bands.ts';
 
 const url = process.env.SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -29,10 +29,18 @@ async function main() {
         band.id,
         `level ${level} should map to '${band.id}' per public.skill_band(), got '${data}'`
       );
+      assert.strictEqual(
+        skillBandForLevel(level).id,
+        band.id,
+        `skillBandForLevel(${level}) should return the '${band.id}' band`
+      );
     }
   }
 
-  console.log('PASS: SKILL_BANDS is contiguous 1-18 and matches public.skill_band() for every level');
+  assert.throws(() => skillBandForLevel(0), /no skill band/i, 'expected skillBandForLevel to throw for level below 1');
+  assert.throws(() => skillBandForLevel(19), /no skill band/i, 'expected skillBandForLevel to throw for level above 18');
+
+  console.log('PASS: SKILL_BANDS is contiguous 1-18, matches public.skill_band() for every level, and skillBandForLevel agrees with SKILL_BANDS');
 }
 
 main()
