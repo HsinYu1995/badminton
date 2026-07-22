@@ -119,3 +119,5 @@ Task 1: complete (commit 595d551, review clean, no fix round needed)
 - Minor deferred (not fixed, tracked here for a follow-on pass): the new test exercises `status='cancelled'` exclusion but not `status='completed'` exclusion - both share the identical `e.status = 'open'` predicate so risk is low. Also noted: the not-full check is a correlated per-row scalar subquery with no supporting index on `event_participants(event_id, status)` - fine at current scale, a future scalability note only.
 
 Task 2: complete (commit 6aadc0c, review clean, no fix round needed)
+
+Task 3: complete (commit 6ed4ed6, review clean, no fix round needed)
