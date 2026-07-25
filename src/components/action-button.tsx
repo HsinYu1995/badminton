@@ -28,10 +28,11 @@ export function ActionButton({ label, onPress, variant = 'primary', disabled, lo
       accessibilityState={{ disabled: isDisabled }}
       disabled={isDisabled}
       onPress={onPress}
-      style={[
+      style={({ pressed }) => [
         styles.button,
         { backgroundColor: colors.bg, borderColor: colors.border ?? 'transparent' },
         isDisabled && styles.disabled,
+        pressed && !isDisabled && styles.pressed,
         style,
       ]}
     >
@@ -53,6 +54,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 100,
+  },
+  pressed: {
+    transform: [{ scale: 0.96 }],
   },
   disabled: {
     opacity: 0.5,
