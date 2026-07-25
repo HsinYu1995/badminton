@@ -3,7 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { ACTIVE_PARTICIPANT_STATUSES, isPastEvent, type EventListItem } from '@/lib/events';
+import { ACTIVE_PARTICIPANT_STATUSES, computePlayerCounts, isPastEvent, type EventListItem } from '@/lib/events';
 import { Court, Font, Space } from '@/constants/badminton-theme';
 import { EventCard } from '@/components/event-card';
 import { SearchBar } from '@/components/search-bar';
@@ -49,11 +49,7 @@ export default function DiscoverScreen() {
           .select('event_id, status')
           .in('event_id', eventIds)
           .in('status', ACTIVE_PARTICIPANT_STATUSES);
-        const counts: Record<string, number> = {};
-        for (const row of allParticipantRows ?? []) {
-          counts[row.event_id] = (counts[row.event_id] ?? 0) + 1;
-        }
-        setParticipantCounts(counts);
+        setParticipantCounts(computePlayerCounts(eventIds, allParticipantRows ?? []));
       } else {
         setParticipantCounts({});
       }
@@ -90,7 +86,7 @@ export default function DiscoverScreen() {
         .insert({ event_id: event.id, user_id: session.user.id, status: 'pending' });
       if (joinErr) throw joinErr;
       setMyRequests((prev) => ({ ...prev, [event.id]: 'pending' }));
-      setParticipantCounts((prev) => ({ ...prev, [event.id]: (prev[event.id] ?? 0) + 1 }));
+      setParticipantCounts((prev) => ({ ...prev, [event.id]: (prev[event.id] ?? 1) + 1 }));
     } catch (err) {
       setJoinError(err instanceof Error ? err.message : 'Could not join event.');
     } finally {
@@ -117,7 +113,8 @@ export default function DiscoverScreen() {
         delete next[event.id];
         return next;
       });
-      setParticipantCounts((prev) => ({ ...prev, [event.id]: Math.max((prev[event.id] ?? 1) - 1, 0) }));
+      // Floor at 1, not 0 - the organizer is always still there.
+      setParticipantCounts((prev) => ({ ...prev, [event.id]: Math.max((prev[event.id] ?? 1) - 1, 1) }));
     } catch (err) {
       setCancelError(err instanceof Error ? err.message : 'Could not cancel request.');
     } finally {
@@ -167,10 +164,7 @@ export default function DiscoverScreen() {
               <EventCard
                 key={event.id}
                 event={event}
-                // The organizer is always a player in their own game too,
-                // even though they have no event_participants row - so the
-                // headcount shown is never just the joined/requested count.
-                participantCount={1 + (participantCounts[event.id] ?? 0)}
+                participantCount={participantCounts[event.id]}
                 action={
                   isOwnEvent ? (
                     <Text style={styles.ownEventLabel}>Your event</Text>

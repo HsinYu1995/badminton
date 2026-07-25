@@ -3,7 +3,8 @@ import { useFocusEffect } from 'expo-router';
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { ACTIVE_PARTICIPANT_STATUSES, isPastEvent, type EventListItem } from '@/lib/events';
+import { isPastEvent, type EventListItem } from '@/lib/events';
+import { loadProfileSummary, getEventRoster, type Attendee, type AttendingEvent, type ProfileRow } from '@/lib/profile-data';
 import { bandForLevel, SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
 import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
 import { EventCard } from '@/components/event-card';
@@ -11,23 +12,6 @@ import { ActionButton } from '@/components/action-button';
 import { Pill } from '@/components/pill';
 import { SkillBandSelector } from '@/components/skill-band-selector';
 import { SectionDivider } from '@/components/section-divider';
-
-const EVENT_COLUMNS = 'id, organizer_id, title, start_time, end_time, headcount_max, skill_min, skill_max, fee, venues(name)';
-
-type ProfileRow = {
-  display_name: string;
-  skill_level: number | null;
-  bio: string | null;
-  contact_info: string | null;
-};
-
-type OrganizerInfo = {
-  display_name: string;
-  skill_level: number | null;
-  contact_info: string | null;
-};
-
-type AttendingEvent = EventListItem & { organizer: OrganizerInfo | null };
 
 export default function ProfileScreen() {
   const { session, signOut } = useAuth();
@@ -54,77 +38,20 @@ export default function ProfileScreen() {
   const loadProfile = useCallback(async () => {
     if (!session) return;
     setLoading(true);
-    setLoadError(null);
 
-    const [{ data: profileData, error: profileErr }, { data: eventsData, error: eventsErr }] = await Promise.all([
-      supabase.from('profiles').select('display_name, skill_level, bio, contact_info').eq('id', session.user.id).single(),
-      supabase.from('events').select(EVENT_COLUMNS).eq('organizer_id', session.user.id).order('start_time'),
-    ]);
+    const summary = await loadProfileSummary(supabase, session.user.id);
 
-    if (profileErr) setLoadError(profileErr.message);
-    else {
-      setProfile(profileData);
-      setDisplayNameText(profileData.display_name);
-      setBioText(profileData.bio ?? '');
-      setContactInfoText(profileData.contact_info ?? '');
-      setSkillBandId(profileData.skill_level != null ? bandForLevel(profileData.skill_level).id : null);
+    if (summary.profile) {
+      setProfile(summary.profile);
+      setDisplayNameText(summary.profile.display_name);
+      setBioText(summary.profile.bio ?? '');
+      setContactInfoText(summary.profile.contact_info ?? '');
+      setSkillBandId(summary.profile.skill_level != null ? bandForLevel(summary.profile.skill_level).id : null);
     }
-
-    let loadedEvents: EventListItem[] = [];
-    if (eventsErr) setLoadError((prev) => prev ?? eventsErr.message);
-    else {
-      loadedEvents = (eventsData as unknown as EventListItem[] | null) ?? [];
-      setMyEvents(loadedEvents);
-    }
-
-    const { data: acceptedRows, error: acceptedErr } = await supabase
-      .from('event_participants')
-      .select('event_id')
-      .eq('user_id', session.user.id)
-      .eq('status', 'accepted');
-    let loadedAttendingEvents: AttendingEvent[] = [];
-    if (acceptedErr) setLoadError((prev) => prev ?? acceptedErr.message);
-    else {
-      const attendingEventIds = (acceptedRows ?? []).map((row) => row.event_id);
-      if (attendingEventIds.length > 0) {
-        const { data: attendingEventsData, error: attendingEventsErr } = await supabase
-          .from('events')
-          .select(EVENT_COLUMNS)
-          .in('id', attendingEventIds)
-          .order('start_time');
-        if (attendingEventsErr) setLoadError((prev) => prev ?? attendingEventsErr.message);
-        else {
-          const rawAttendingEvents = (attendingEventsData as unknown as EventListItem[] | null) ?? [];
-          const organizerIds = [...new Set(rawAttendingEvents.map((event) => event.organizer_id))];
-          const { data: organizerRows } = await supabase
-            .from('profiles')
-            .select('id, display_name, skill_level, contact_info')
-            .in('id', organizerIds);
-          const organizerById = new Map((organizerRows ?? []).map((row) => [row.id, row]));
-          loadedAttendingEvents = rawAttendingEvents.map((event) => ({
-            ...event,
-            organizer: organizerById.get(event.organizer_id) ?? null,
-          }));
-        }
-      }
-      setAttendingEvents(loadedAttendingEvents);
-    }
-
-    const allEventIds = [...loadedEvents.map((event) => event.id), ...loadedAttendingEvents.map((event) => event.id)];
-    if (allEventIds.length > 0) {
-      const { data: participantRows } = await supabase
-        .from('event_participants')
-        .select('event_id, status')
-        .in('event_id', allEventIds)
-        .in('status', ACTIVE_PARTICIPANT_STATUSES);
-      const counts: Record<string, number> = {};
-      for (const row of participantRows ?? []) {
-        counts[row.event_id] = (counts[row.event_id] ?? 0) + 1;
-      }
-      setParticipantCounts(counts);
-    } else {
-      setParticipantCounts({});
-    }
+    setMyEvents(summary.organizedEvents);
+    setAttendingEvents(summary.attendingEvents);
+    setParticipantCounts(summary.playerCounts);
+    setLoadError(summary.profileError ?? summary.organizedEventsError ?? summary.attendingEventsError);
 
     setLoading(false);
   }, [session]);
@@ -293,7 +220,7 @@ export default function ProfileScreen() {
             <View key={event.id}>
               <EventCard
                 event={event}
-                participantCount={1 + (participantCounts[event.id] ?? 0)}
+                participantCount={participantCounts[event.id]}
                 action={
                   isPastEvent(event) ? undefined : (
                     <ActionButton
@@ -339,7 +266,7 @@ export default function ProfileScreen() {
             <View key={event.id}>
               <EventCard
                 event={event}
-                participantCount={1 + (participantCounts[event.id] ?? 0)}
+                participantCount={participantCounts[event.id]}
                 action={
                   isPastEvent(event) ? (
                     <ActionButton
@@ -361,12 +288,6 @@ export default function ProfileScreen() {
   );
 }
 
-type Attendee = {
-  user_id: string;
-  status: 'pending' | 'accepted' | 'declined';
-  profiles: { display_name: string; skill_level: number | null; contact_info: string | null } | null;
-};
-
 // A small self-fetching block rather than threading roster data through
 // ProfileScreen's own state - each organized event's attendee list is
 // independent of the rest of the screen's load/save cycle, and there's no
@@ -378,16 +299,12 @@ function AttendeeRoster({ eventId }: { eventId: string }) {
   useEffect(() => {
     let cancelled = false;
     setLoadingRoster(true);
-    supabase
-      .from('event_participants')
-      .select('user_id, status, profiles(display_name, skill_level, contact_info)')
-      .eq('event_id', eventId)
-      .then(({ data }) => {
-        if (!cancelled) {
-          setAttendees((data as unknown as Attendee[] | null) ?? []);
-          setLoadingRoster(false);
-        }
-      });
+    getEventRoster(supabase, eventId).then((rows) => {
+      if (!cancelled) {
+        setAttendees(rows);
+        setLoadingRoster(false);
+      }
+    });
     return () => {
       cancelled = true;
     };

@@ -29,3 +29,22 @@ export function formatFee(fee: number): string {
 export function isPastEvent(event: Pick<EventListItem, 'end_time'>, now: number = Date.now()): boolean {
   return new Date(event.end_time).getTime() < now;
 }
+
+// An event's Player count (see CONTEXT.md) is the organizer - always
+// exactly one, since organizers have no event_participants row of their
+// own - plus every pending/accepted request. Returns an entry for every
+// id in `eventIds`, even ones with zero rows, so callers never need a
+// `?? 0`/`?? 1` fallback at the point of use.
+export function computePlayerCounts(
+  eventIds: string[],
+  activeParticipantRows: { event_id: string }[]
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const id of eventIds) {
+    counts[id] = 1;
+  }
+  for (const row of activeParticipantRows) {
+    counts[row.event_id] = (counts[row.event_id] ?? 1) + 1;
+  }
+  return counts;
+}
