@@ -57,6 +57,7 @@
     "test:skill-bands": "node --env-file=.env.local tests/skill-bands.test.mjs",
     "test:auth-session": "node --env-file=.env.local tests/auth-session.test.mjs",
     "test:profile-edit": "node --env-file=.env.local tests/profile-edit.test.mjs",
+    "test:participant-lifecycle": "node --env-file=.env.local tests/participant-lifecycle.test.mjs",
     "test": "jest"
   },
   "private": true,
