@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Text, TextInput, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { DateTimePicker } from '@expo/ui/community/datetime-picker';
 import { Picker } from '@expo/ui/community/picker';
@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
 import { VenuePicker, type Venue } from '@/components/venue-picker';
+import { Court, Radius, Space } from '@/constants/badminton-theme';
+import { ActionButton } from '@/components/action-button';
 
 function combineDateAndTime(date: Date, time: Date): Date {
   const combined = new Date(date);
@@ -98,11 +100,12 @@ export default function CreateEventScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Create event</Text>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+      <Text style={styles.title}>🏸 Host a game</Text>
+      <Text style={styles.subtitle}>Fill in the details so players know what to expect</Text>
 
-      <Text style={styles.label}>Title</Text>
-      <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Friendly doubles" />
+      <Text style={styles.label}>Event title</Text>
+      <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Friendly doubles" placeholderTextColor={Court.inkSecondary} />
 
       <Text style={styles.label}>Description</Text>
       <TextInput
@@ -110,13 +113,14 @@ export default function CreateEventScreen() {
         value={description}
         onChangeText={setDescription}
         placeholder="Optional details for players"
+        placeholderTextColor={Court.inkSecondary}
         multiline
       />
 
-      <Text style={styles.label}>Venue</Text>
+      <Text style={styles.label}>📍 Venue</Text>
       <VenuePicker selectedVenueId={venue?.id ?? null} onSelect={setVenue} />
 
-      <Text style={styles.label}>Number of people</Text>
+      <Text style={styles.label}>👥 Number of players</Text>
       <TextInput
         style={styles.input}
         value={headcountText}
@@ -124,16 +128,16 @@ export default function CreateEventScreen() {
         keyboardType="number-pad"
       />
 
-      <Text style={styles.label}>Fee (NT$)</Text>
+      <Text style={styles.label}>💰 Fee (NT$, 0 for free)</Text>
       <TextInput style={styles.input} value={feeText} onChangeText={setFeeText} keyboardType="number-pad" />
 
-      <Text style={styles.label}>Date</Text>
+      <Text style={styles.label}>📅 Date</Text>
       <DateTimePicker mode="date" value={date} onValueChange={(_event, newDate) => setDate(newDate)} presentation="inline" display="spinner" />
 
-      <Text style={styles.label}>Start time</Text>
+      <Text style={styles.label}>🕒 Start time</Text>
       <DateTimePicker mode="time" value={startTime} onValueChange={(_event, newTime) => setStartTime(newTime)} presentation="inline" display="spinner" />
 
-      <Text style={styles.label}>Duration (minutes)</Text>
+      <Text style={styles.label}>⏱️ Duration (minutes)</Text>
       <TextInput
         style={styles.input}
         value={durationMinutesText}
@@ -141,35 +145,47 @@ export default function CreateEventScreen() {
         keyboardType="number-pad"
       />
 
-      <Text style={styles.label}>Skill range: from</Text>
+      <Text style={styles.label}>🏆 Skill range: from</Text>
       <Picker selectedValue={fromBandId} onValueChange={(value) => setFromBandId(value as SkillBandId)}>
         {SKILL_BANDS.map((band) => (
           <Picker.Item key={band.id} label={band.label} value={band.id} />
         ))}
       </Picker>
 
-      <Text style={styles.label}>Skill range: to</Text>
+      <Text style={styles.label}>🏆 Skill range: to</Text>
       <Picker selectedValue={toBandId} onValueChange={(value) => setToBandId(value as SkillBandId)}>
         {SKILL_BANDS.map((band) => (
           <Picker.Item key={band.id} label={band.label} value={band.id} />
         ))}
       </Picker>
 
-      <Pressable style={styles.submitButton} disabled={submitting} onPress={handleSubmit}>
-        <Text style={styles.submitButtonText}>{submitting ? 'Creating...' : 'Create event'}</Text>
-      </Pressable>
+      <ActionButton
+        label={submitting ? 'Creating...' : 'Create event'}
+        onPress={handleSubmit}
+        loading={submitting}
+        style={styles.submitButton}
+      />
       {submitError && <Text style={styles.error}>{submitError}</Text>}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, gap: 4 },
-  title: { fontSize: 24, fontWeight: '600', marginBottom: 12 },
-  label: { fontWeight: '600', marginTop: 12 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginTop: 4 },
+  screen: { backgroundColor: Court.greenTint },
+  container: { padding: Space.lg, gap: 4, paddingBottom: Space.xl * 2 },
+  title: { fontSize: 26, fontWeight: '800', color: Court.ink, marginBottom: 2 },
+  subtitle: { color: Court.inkSecondary, marginBottom: Space.md },
+  label: { fontWeight: '700', color: Court.ink, marginTop: Space.md },
+  input: {
+    borderWidth: 1,
+    borderColor: Court.line,
+    backgroundColor: Court.shuttle,
+    borderRadius: Radius.md,
+    padding: 10,
+    marginTop: 4,
+    color: Court.ink,
+  },
   multiline: { minHeight: 80, textAlignVertical: 'top' },
-  submitButton: { backgroundColor: '#208AEF', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 20 },
-  submitButtonText: { color: '#fff', fontWeight: '600' },
-  error: { color: 'red', marginTop: 8 },
+  submitButton: { marginTop: Space.xl, alignSelf: 'stretch' },
+  error: { color: Court.danger, marginTop: Space.sm },
 });

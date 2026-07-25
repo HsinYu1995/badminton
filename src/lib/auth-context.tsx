@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { makeRedirectUri } from 'expo-auth-session';
-import * as QueryParams from 'expo-auth-session/build/QueryParams';
 import * as WebBrowser from 'expo-web-browser';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { createSessionFromUrl } from '@/lib/auth-session';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -15,27 +15,6 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-async function createSessionFromUrl(url: string) {
-  const { params, errorCode } = QueryParams.getQueryParams(url);
-  if (errorCode) throw new Error(errorCode);
-
-  const { access_token, refresh_token, code } = params;
-
-  if (access_token && refresh_token) {
-    const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-    if (error) throw error;
-    return;
-  }
-
-  if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) throw error;
-    return;
-  }
-
-  throw new Error('No access/refresh tokens or auth code found in redirect URL.');
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -64,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const result = await WebBrowser.openAuthSessionAsync(data?.url ?? '', redirectTo);
     if (result.type === 'success') {
-      await createSessionFromUrl(result.url);
+      await createSessionFromUrl(supabase, result.url);
     }
   }
 

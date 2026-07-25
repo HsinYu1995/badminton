@@ -33,7 +33,11 @@
     "react-native-worklets": "0.10.0"
   },
   "devDependencies": {
+    "@testing-library/react-native": "^14.0.1",
+    "@types/jest": "29.5.14",
     "@types/react": "~19.2.2",
+    "jest": "~29.7.0",
+    "jest-expo": "~57.0.2",
     "supabase": "^2.109.1",
     "typescript": "~6.0.3"
   },
@@ -49,7 +53,19 @@
     "test:rls": "node --env-file=.env.local tests/rls.test.mjs",
     "test:auth-profile": "node --env-file=.env.local tests/auth-profile-metadata.test.mjs",
     "test:create-event": "node --env-file=.env.local tests/create-event.test.mjs",
-    "test:skill-bands": "node --env-file=.env.local tests/skill-bands.test.mjs"
+    "test:skill-bands": "node --env-file=.env.local tests/skill-bands.test.mjs",
+    "test:auth-session": "node --env-file=.env.local tests/auth-session.test.mjs",
+    "test": "jest"
   },
-  "private": true
+  "private": true,
+  "jest": {
+    "preset": "jest-expo",
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/tests/"
+    ],
+    "modulePathIgnorePatterns": [
+      "<rootDir>/.claude/worktrees/"
+    ]
+  }
 }

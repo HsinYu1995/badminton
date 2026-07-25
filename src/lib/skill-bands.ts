@@ -26,3 +26,7 @@ export const SKILL_BANDS: SkillBand[] = [
   { id: 'advanced', label: 'Advanced', min: 13, max: 15 },
   { id: 'professional', label: 'Professional', min: 16, max: 18 },
 ];
+
+export function bandForLevel(level: number): SkillBand {
+  return SKILL_BANDS.find((band) => level >= band.min && level <= band.max) ?? SKILL_BANDS[0];
+}
