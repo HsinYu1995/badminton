@@ -715,6 +715,7 @@ Append a closing entry to this file's Progress Ledger summarizing total suites/t
 - **2026-07-24, Task 2 (`discover-join-test.tsx`):** Added the join-flow test. Passed on the first run. Full suite: 5/5 passed.
 - **2026-07-24, Task 3 (`profile-remove-test.tsx`):** Added the remove-outdated-event test. Passed on the first run. Full suite: 6/6 passed.
 - **2026-07-24, Task 4 (SearchBar icon):** Added a persistent 🔍 glyph inside SearchBar. Full suite: 6/6 passed, no regressions.
+- **2026-07-24, Task 5 (EventCard skill gauge):** Added a 1-18 scale gauge bar highlighting each event's skill range. Full suite: 6/6 passed; `tsc --noEmit` clean.
 
 ---
 
