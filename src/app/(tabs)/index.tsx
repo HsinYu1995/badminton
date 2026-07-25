@@ -11,6 +11,11 @@ import { ActionButton } from '@/components/action-button';
 import { SectionDivider } from '@/components/section-divider';
 
 const EVENT_COLUMNS = 'id, organizer_id, title, start_time, end_time, headcount_max, skill_min, skill_max, fee, venues(name)';
+// A game's "current number of people" counts pending + accepted requests,
+// not accepted-only - the app has no organizer accept/decline UI yet, so an
+// accepted-only count would read as permanently empty even for events with
+// real signups. Declined (withdrawn) requests are excluded either way.
+const ACTIVE_PARTICIPANT_STATUSES = ['pending', 'accepted'];
 
 type ParticipantStatus = 'pending' | 'accepted' | 'declined';
 
@@ -18,11 +23,14 @@ export default function DiscoverScreen() {
   const { session } = useAuth();
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [myRequests, setMyRequests] = useState<Record<string, ParticipantStatus>>({});
+  const [participantCounts, setParticipantCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [joiningEventId, setJoiningEventId] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [cancelingEventId, setCancelingEventId] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const loadEvents = useCallback(async () => {
     setLoading(true);
@@ -35,9 +43,26 @@ export default function DiscoverScreen() {
       setLoading(false);
       return;
     }
-    setEvents((data as unknown as EventListItem[] | null) ?? []);
+    const loadedEvents = (data as unknown as EventListItem[] | null) ?? [];
+    setEvents(loadedEvents);
 
     try {
+      const eventIds = loadedEvents.map((event) => event.id);
+      if (eventIds.length > 0) {
+        const { data: allParticipantRows } = await supabase
+          .from('event_participants')
+          .select('event_id, status')
+          .in('event_id', eventIds)
+          .in('status', ACTIVE_PARTICIPANT_STATUSES);
+        const counts: Record<string, number> = {};
+        for (const row of allParticipantRows ?? []) {
+          counts[row.event_id] = (counts[row.event_id] ?? 0) + 1;
+        }
+        setParticipantCounts(counts);
+      } else {
+        setParticipantCounts({});
+      }
+
       if (session) {
         const { data: participantRows } = await supabase
           .from('event_participants')
@@ -70,10 +95,31 @@ export default function DiscoverScreen() {
         .insert({ event_id: event.id, user_id: session.user.id, status: 'pending' });
       if (joinErr) throw joinErr;
       setMyRequests((prev) => ({ ...prev, [event.id]: 'pending' }));
+      setParticipantCounts((prev) => ({ ...prev, [event.id]: (prev[event.id] ?? 0) + 1 }));
     } catch (err) {
       setJoinError(err instanceof Error ? err.message : 'Could not join event.');
     } finally {
       setJoiningEventId(null);
+    }
+  }
+
+  async function handleCancelRequest(event: EventListItem) {
+    if (!session) return;
+    setCancelError(null);
+    setCancelingEventId(event.id);
+    try {
+      const { error: cancelErr } = await supabase
+        .from('event_participants')
+        .update({ status: 'declined' })
+        .eq('event_id', event.id)
+        .eq('user_id', session.user.id);
+      if (cancelErr) throw cancelErr;
+      setMyRequests((prev) => ({ ...prev, [event.id]: 'declined' }));
+      setParticipantCounts((prev) => ({ ...prev, [event.id]: Math.max((prev[event.id] ?? 1) - 1, 0) }));
+    } catch (err) {
+      setCancelError(err instanceof Error ? err.message : 'Could not cancel request.');
+    } finally {
+      setCancelingEventId(null);
     }
   }
 
@@ -111,6 +157,7 @@ export default function DiscoverScreen() {
             </View>
           )}
           {joinError && <Text style={styles.error}>{joinError}</Text>}
+          {cancelError && <Text style={styles.error}>{cancelError}</Text>}
           {visibleEvents.map((event) => {
             const isOwnEvent = session?.user.id === event.organizer_id;
             const requestStatus = myRequests[event.id];
@@ -118,13 +165,26 @@ export default function DiscoverScreen() {
               <EventCard
                 key={event.id}
                 event={event}
+                participantCount={participantCounts[event.id]}
                 action={
                   isOwnEvent ? (
                     <Text style={styles.ownEventLabel}>Your event</Text>
                   ) : requestStatus === 'accepted' ? (
-                    <ActionButton label="Confirmed" onPress={() => {}} variant="muted" disabled />
+                    <ActionButton
+                      label="Leave event"
+                      onPress={() => handleCancelRequest(event)}
+                      variant="danger"
+                      loading={cancelingEventId === event.id}
+                    />
                   ) : requestStatus === 'pending' ? (
-                    <ActionButton label="Requested" onPress={() => {}} variant="outline" disabled />
+                    <ActionButton
+                      label="Cancel request"
+                      onPress={() => handleCancelRequest(event)}
+                      variant="outline"
+                      loading={cancelingEventId === event.id}
+                    />
+                  ) : requestStatus === 'declined' ? (
+                    <ActionButton label="Withdrawn" onPress={() => {}} variant="muted" disabled />
                   ) : (
                     <ActionButton
                       label="Join"

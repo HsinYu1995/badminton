@@ -33,9 +33,13 @@ function SkillGauge({ skillMin, skillMax, color }: { skillMin: number; skillMax:
 type EventCardProps = {
   event: EventListItem;
   action?: ReactNode;
+  // Count of pending + accepted event_participants rows for this event.
+  // Omitted (rather than defaulted to 0) when the caller hasn't fetched it,
+  // so the card falls back to "Up to N players" instead of claiming 0/N.
+  participantCount?: number;
 };
 
-export function EventCard({ event, action }: EventCardProps) {
+export function EventCard({ event, action, participantCount }: EventCardProps) {
   const band = bandForLevel(event.skill_min);
   const accent = SkillBandAccents[band.id] ?? Court.green;
   const past = isPastEvent(event);
@@ -59,7 +63,10 @@ export function EventCard({ event, action }: EventCardProps) {
         <View style={styles.pillRow}>
           <Pill label={`${band.label} · Lv ${event.skill_min}-${event.skill_max}`} tone="green" />
           <Pill label={formatFee(event.fee)} tone="feather" />
-          <Pill label={`Up to ${event.headcount_max} players`} tone="neutral" />
+          <Pill
+            label={participantCount != null ? `${participantCount}/${event.headcount_max} players` : `Up to ${event.headcount_max} players`}
+            tone="neutral"
+          />
         </View>
 
         {action && <View style={styles.actionRow}>{action}</View>}

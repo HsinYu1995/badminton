@@ -17,6 +17,10 @@ const mockEvent = {
 // useCallback/useEffect dependency array.
 const FAKE_SESSION = { user: { id: 'fake-user-id' } };
 const mockParticipantInsert = jest.fn(() => Promise.resolve({ error: null }));
+const mockParticipantUpdateEq2 = jest.fn(() => Promise.resolve({ error: null }));
+const mockParticipantUpdate = jest.fn((_payload: unknown) => ({
+  eq: () => ({ eq: mockParticipantUpdateEq2 }),
+}));
 
 jest.mock('@/lib/auth-context', () => ({
   AuthProvider: ({ children }: { children: unknown }) => children,
@@ -36,8 +40,12 @@ jest.mock('@/lib/supabase', () => ({
       }
       if (table === 'event_participants') {
         return {
-          select: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }),
+          select: () => ({
+            eq: () => Promise.resolve({ data: [], error: null }),
+            in: () => ({ in: () => Promise.resolve({ data: [], error: null }) }),
+          }),
           insert: mockParticipantInsert,
+          update: mockParticipantUpdate,
         };
       }
       throw new Error(`Unexpected table in mock: ${table}`);
@@ -46,11 +54,12 @@ jest.mock('@/lib/supabase', () => ({
 }));
 
 it(
-  'joins an event and shows a disabled "Requested" state',
+  'joins an event, shows a Cancel request state, and can withdraw it',
   async () => {
     await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)' });
 
     await screen.findByText(mockEvent.title);
+    expect(screen.getByText('Up to 8 players')).toBeTruthy();
     await fireEvent.press(screen.getByText('Join'));
 
     await waitFor(() => expect(mockParticipantInsert).toHaveBeenCalledTimes(1));
@@ -60,8 +69,15 @@ it(
       status: 'pending',
     });
 
-    expect(await screen.findByText('Requested')).toBeTruthy();
+    expect(await screen.findByText('Cancel request')).toBeTruthy();
     expect(screen.queryByText('Join')).toBeNull();
+    expect(screen.getByText('1/8 players')).toBeTruthy();
+
+    await fireEvent.press(screen.getByText('Cancel request'));
+
+    await waitFor(() => expect(mockParticipantUpdate).toHaveBeenCalledWith({ status: 'declined' }));
+    expect(await screen.findByText('Withdrawn')).toBeTruthy();
+    expect(screen.queryByText('Cancel request')).toBeNull();
   },
   15000
 );
