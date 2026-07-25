@@ -714,6 +714,7 @@ Append a closing entry to this file's Progress Ledger summarizing total suites/t
 - **2026-07-24, Task 1 (`discover-search-test.tsx`):** Added the search-filter test. First attempt failed because `fireEvent.changeText` wasn't awaited, so the assertion ran before the filtered re-render committed - fixed by awaiting it (matching the pattern already used elsewhere in this test suite). Full suite: 4/4 passed.
 - **2026-07-24, Task 2 (`discover-join-test.tsx`):** Added the join-flow test. Passed on the first run. Full suite: 5/5 passed.
 - **2026-07-24, Task 3 (`profile-remove-test.tsx`):** Added the remove-outdated-event test. Passed on the first run. Full suite: 6/6 passed.
+- **2026-07-24, Task 4 (SearchBar icon):** Added a persistent 🔍 glyph inside SearchBar. Full suite: 6/6 passed, no regressions.
 
 ---
 
