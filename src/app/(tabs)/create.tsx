@@ -10,6 +10,7 @@ import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
 import { ActionButton } from '@/components/action-button';
 import { SkillBandSelector } from '@/components/skill-band-selector';
 import { SectionDivider } from '@/components/section-divider';
+import { FieldCard } from '@/components/field-card';
 
 function combineDateAndTime(date: Date, time: Date): Date {
   const combined = new Date(date);
@@ -133,11 +134,13 @@ export default function CreateEventScreen() {
       <Text style={styles.label}>💰 Fee (NT$, 0 for free)</Text>
       <TextInput style={styles.input} value={feeText} onChangeText={setFeeText} keyboardType="number-pad" />
 
-      <Text style={styles.label}>📅 Date</Text>
-      <DateTimePicker mode="date" value={date} onValueChange={(_event, newDate) => setDate(newDate)} presentation="inline" display="spinner" />
+      <FieldCard icon="📅" label="Date">
+        <DateTimePicker mode="date" value={date} onValueChange={(_event, newDate) => setDate(newDate)} presentation="inline" display="spinner" />
+      </FieldCard>
 
-      <Text style={styles.label}>🕒 Start time</Text>
-      <DateTimePicker mode="time" value={startTime} onValueChange={(_event, newTime) => setStartTime(newTime)} presentation="inline" display="spinner" />
+      <FieldCard icon="🕒" label="Start time">
+        <DateTimePicker mode="time" value={startTime} onValueChange={(_event, newTime) => setStartTime(newTime)} presentation="inline" display="spinner" />
+      </FieldCard>
 
       <Text style={styles.label}>⏱️ Duration (minutes)</Text>
       <TextInput
