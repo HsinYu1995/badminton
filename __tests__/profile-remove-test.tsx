@@ -62,6 +62,9 @@ jest.mock('@/lib/supabase', () => ({
           delete: () => ({ eq: mockEventsDeleteEq }),
         };
       }
+      if (table === 'event_participants') {
+        return { select: () => ({ in: () => ({ in: () => Promise.resolve({ data: [], error: null }) }) }) };
+      }
       throw new Error(`Unexpected table in mock: ${table}`);
     },
   },

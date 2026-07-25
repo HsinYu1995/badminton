@@ -34,6 +34,9 @@ jest.mock('@/lib/supabase', () => ({
       if (table === 'events') {
         return { select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }) };
       }
+      if (table === 'event_participants') {
+        return { select: () => ({ in: () => ({ in: () => Promise.resolve({ data: [], error: null }) }) }) };
+      }
       throw new Error(`Unexpected table in mock: ${table}`);
     },
   },
@@ -59,6 +62,7 @@ it(
 
     await waitFor(() => expect(mockProfileUpdateEq).toHaveBeenCalledTimes(1));
     expect(mockProfileUpdateEq).toHaveBeenCalledWith({
+      display_name: 'Fake Player',
       bio: 'Weekend warrior, mostly doubles.',
       contact_info: 'LINE: fakeplayer',
       skill_level: 13,

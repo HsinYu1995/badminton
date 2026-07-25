@@ -3,7 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { isPastEvent, type EventListItem } from '@/lib/events';
+import { ACTIVE_PARTICIPANT_STATUSES, isPastEvent, type EventListItem } from '@/lib/events';
 import { Court, Font, Space } from '@/constants/badminton-theme';
 import { EventCard } from '@/components/event-card';
 import { SearchBar } from '@/components/search-bar';
@@ -11,11 +11,6 @@ import { ActionButton } from '@/components/action-button';
 import { SectionDivider } from '@/components/section-divider';
 
 const EVENT_COLUMNS = 'id, organizer_id, title, start_time, end_time, headcount_max, skill_min, skill_max, fee, venues(name)';
-// A game's "current number of people" counts pending + accepted requests,
-// not accepted-only - the app has no organizer accept/decline UI yet, so an
-// accepted-only count would read as permanently empty even for events with
-// real signups. Declined (withdrawn) requests are excluded either way.
-const ACTIVE_PARTICIPANT_STATUSES = ['pending', 'accepted'];
 
 type ParticipantStatus = 'pending' | 'accepted' | 'declined';
 

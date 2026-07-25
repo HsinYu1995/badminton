@@ -3,7 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { isPastEvent, type EventListItem } from '@/lib/events';
+import { ACTIVE_PARTICIPANT_STATUSES, isPastEvent, type EventListItem } from '@/lib/events';
 import { bandForLevel, SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
 import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
 import { EventCard } from '@/components/event-card';
@@ -24,12 +24,14 @@ export default function ProfileScreen() {
   const { session, signOut } = useAuth();
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [myEvents, setMyEvents] = useState<EventListItem[]>([]);
+  const [participantCounts, setParticipantCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [removingEventId, setRemovingEventId] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
+  const [displayNameText, setDisplayNameText] = useState('');
   const [bioText, setBioText] = useState('');
   const [contactInfoText, setContactInfoText] = useState('');
   const [skillBandId, setSkillBandId] = useState<SkillBandId | null>(null);
@@ -50,13 +52,33 @@ export default function ProfileScreen() {
     if (profileErr) setLoadError(profileErr.message);
     else {
       setProfile(profileData);
+      setDisplayNameText(profileData.display_name);
       setBioText(profileData.bio ?? '');
       setContactInfoText(profileData.contact_info ?? '');
       setSkillBandId(profileData.skill_level != null ? bandForLevel(profileData.skill_level).id : null);
     }
 
     if (eventsErr) setLoadError((prev) => prev ?? eventsErr.message);
-    else setMyEvents((eventsData as unknown as EventListItem[] | null) ?? []);
+    else {
+      const loadedEvents = (eventsData as unknown as EventListItem[] | null) ?? [];
+      setMyEvents(loadedEvents);
+
+      const eventIds = loadedEvents.map((event) => event.id);
+      if (eventIds.length > 0) {
+        const { data: participantRows } = await supabase
+          .from('event_participants')
+          .select('event_id, status')
+          .in('event_id', eventIds)
+          .in('status', ACTIVE_PARTICIPANT_STATUSES);
+        const counts: Record<string, number> = {};
+        for (const row of participantRows ?? []) {
+          counts[row.event_id] = (counts[row.event_id] ?? 0) + 1;
+        }
+        setParticipantCounts(counts);
+      } else {
+        setParticipantCounts({});
+      }
+    }
 
     setLoading(false);
   }, [session]);
@@ -80,18 +102,27 @@ export default function ProfileScreen() {
     if (!session) return;
     setSaveError(null);
     setSaveSuccess(false);
+
+    const trimmedName = displayNameText.trim();
+    if (!trimmedName) {
+      setSaveError('Display name is required.');
+      return;
+    }
+
     setSavingProfile(true);
     try {
       const band = skillBandId ? SKILL_BANDS.find((b) => b.id === skillBandId) : null;
       const { error } = await supabase
         .from('profiles')
         .update({
+          display_name: trimmedName,
           bio: bioText.trim() || null,
           contact_info: contactInfoText.trim() || null,
           skill_level: band ? band.min : null,
         })
         .eq('id', session.user.id);
       if (error) throw error;
+      setProfile((prev) => (prev ? { ...prev, display_name: trimmedName } : prev));
       setSaveSuccess(true);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Could not save profile.');
@@ -137,6 +168,15 @@ export default function ProfileScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>My profile</Text>
+
+        <Text style={styles.label}>😀 Display name</Text>
+        <TextInput
+          style={styles.input}
+          value={displayNameText}
+          onChangeText={setDisplayNameText}
+          placeholder="How other players see you"
+          placeholderTextColor={Court.inkSecondary}
+        />
 
         <Text style={styles.label}>🏆 Skill level</Text>
         <SkillBandSelector selectedId={skillBandId} onSelect={setSkillBandId} />
@@ -189,6 +229,7 @@ export default function ProfileScreen() {
             <EventCard
               key={event.id}
               event={event}
+              participantCount={participantCounts[event.id]}
               action={
                 isPastEvent(event) ? (
                   <ActionButton

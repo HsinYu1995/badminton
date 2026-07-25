@@ -1,3 +1,9 @@
+// A game's "current number of people" counts pending + accepted requests,
+// not accepted-only - there's no organizer accept/decline UI yet, so an
+// accepted-only count would read as permanently empty even for events with
+// real signups. Declined (withdrawn) requests are excluded either way.
+export const ACTIVE_PARTICIPANT_STATUSES = ['pending', 'accepted'] as const;
+
 export type EventListItem = {
   id: string;
   organizer_id: string;
