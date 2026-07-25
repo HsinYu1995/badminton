@@ -80,11 +80,11 @@ it(
     expect(screen.getByText(/Fake Gym/)).toBeTruthy();
     expect(screen.getByText(/Free/)).toBeTruthy();
     expect(screen.getByText(/NT\$150/)).toBeTruthy();
-    // event-1 has 3 active (pending + accepted) participant rows in the mock;
-    // event-2 has none, so it falls back to the "Up to N" phrasing instead of
-    // claiming a fetched-but-actually-zero count.
-    expect(screen.getByText('3/8 players')).toBeTruthy();
-    expect(screen.getByText('Up to 4 players')).toBeTruthy();
+    // event-1 has 3 active (pending + accepted) participant rows in the mock,
+    // plus the organizer who has no event_participants row of their own;
+    // event-2 has none, so it shows just the organizer.
+    expect(screen.getByText('4/8 players')).toBeTruthy();
+    expect(screen.getByText('1/4 players')).toBeTruthy();
   },
   15000
 );

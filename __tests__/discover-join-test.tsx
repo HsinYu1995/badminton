@@ -17,9 +17,9 @@ const mockEvent = {
 // useCallback/useEffect dependency array.
 const FAKE_SESSION = { user: { id: 'fake-user-id' } };
 const mockParticipantInsert = jest.fn(() => Promise.resolve({ error: null }));
-const mockParticipantUpdateEq2 = jest.fn(() => Promise.resolve({ error: null }));
-const mockParticipantUpdate = jest.fn((_payload: unknown) => ({
-  eq: () => ({ eq: mockParticipantUpdateEq2 }),
+const mockParticipantDeleteEq2 = jest.fn(() => Promise.resolve({ error: null }));
+const mockParticipantDelete = jest.fn(() => ({
+  eq: () => ({ eq: mockParticipantDeleteEq2 }),
 }));
 
 jest.mock('@/lib/auth-context', () => ({
@@ -45,7 +45,7 @@ jest.mock('@/lib/supabase', () => ({
             in: () => ({ in: () => Promise.resolve({ data: [], error: null }) }),
           }),
           insert: mockParticipantInsert,
-          update: mockParticipantUpdate,
+          delete: mockParticipantDelete,
         };
       }
       throw new Error(`Unexpected table in mock: ${table}`);
@@ -54,12 +54,14 @@ jest.mock('@/lib/supabase', () => ({
 }));
 
 it(
-  'joins an event, shows a Cancel request state, and can withdraw it',
+  'joins an event, shows a Cancel request state, and cancelling goes back to Join',
   async () => {
     await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)' });
 
     await screen.findByText(mockEvent.title);
-    expect(screen.getByText('Up to 8 players')).toBeTruthy();
+    // The organizer is always a player too, so an event nobody has joined
+    // yet still shows 1, not "Up to 8 players".
+    expect(screen.getByText('1/8 players')).toBeTruthy();
     await fireEvent.press(screen.getByText('Join'));
 
     await waitFor(() => expect(mockParticipantInsert).toHaveBeenCalledTimes(1));
@@ -71,13 +73,14 @@ it(
 
     expect(await screen.findByText('Cancel request')).toBeTruthy();
     expect(screen.queryByText('Join')).toBeNull();
-    expect(screen.getByText('1/8 players')).toBeTruthy();
+    expect(screen.getByText('2/8 players')).toBeTruthy();
 
     await fireEvent.press(screen.getByText('Cancel request'));
 
-    await waitFor(() => expect(mockParticipantUpdate).toHaveBeenCalledWith({ status: 'declined' }));
-    expect(await screen.findByText('Withdrawn')).toBeTruthy();
+    await waitFor(() => expect(mockParticipantDelete).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('Join')).toBeTruthy();
     expect(screen.queryByText('Cancel request')).toBeNull();
+    expect(screen.getByText('1/8 players')).toBeTruthy();
   },
   15000
 );

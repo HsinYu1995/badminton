@@ -105,11 +105,18 @@ export default function DiscoverScreen() {
     try {
       const { error: cancelErr } = await supabase
         .from('event_participants')
-        .update({ status: 'declined' })
+        .delete()
         .eq('event_id', event.id)
         .eq('user_id', session.user.id);
       if (cancelErr) throw cancelErr;
-      setMyRequests((prev) => ({ ...prev, [event.id]: 'declined' }));
+      // Removing the row entirely (not marking it 'declined') lets the
+      // organizer see "Join" again immediately, so a cancelled request can
+      // be sent again later.
+      setMyRequests((prev) => {
+        const next = { ...prev };
+        delete next[event.id];
+        return next;
+      });
       setParticipantCounts((prev) => ({ ...prev, [event.id]: Math.max((prev[event.id] ?? 1) - 1, 0) }));
     } catch (err) {
       setCancelError(err instanceof Error ? err.message : 'Could not cancel request.');
@@ -160,7 +167,10 @@ export default function DiscoverScreen() {
               <EventCard
                 key={event.id}
                 event={event}
-                participantCount={participantCounts[event.id]}
+                // The organizer is always a player in their own game too,
+                // even though they have no event_participants row - so the
+                // headcount shown is never just the joined/requested count.
+                participantCount={1 + (participantCounts[event.id] ?? 0)}
                 action={
                   isOwnEvent ? (
                     <Text style={styles.ownEventLabel}>Your event</Text>
