@@ -717,6 +717,8 @@ Append a closing entry to this file's Progress Ledger summarizing total suites/t
 - **2026-07-24, Task 4 (SearchBar icon):** Added a persistent 🔍 glyph inside SearchBar. Full suite: 6/6 passed, no regressions.
 - **2026-07-24, Task 5 (EventCard skill gauge):** Added a 1-18 scale gauge bar highlighting each event's skill range. Full suite: 6/6 passed; `tsc --noEmit` clean.
 - **2026-07-24, Task 6 (empty states):** Replaced the plain-text empty states in Discover and Profile with icon-forward blocks (emoji + heading + subtext). Full suite: 6/6 passed; `tsc --noEmit` clean.
+- **2026-07-24, carried-forward foundational work (commit `d9fb202`):** Committed the remaining pre-existing uncommitted work this plan builds on (court-card design tokens, ActionButton/Pill, events.ts helpers, auth-session.ts + its e2e test, jest/testing-library wiring in package.json/tsconfig.json, and the tab-bar/create-form UI it enabled) - this predates the plan but was left uncommitted; verified green before committing.
+- **2026-07-24, Task 7 (final verification):** `npm test` -> 6/6 suites, 6/6 tests passing. `npx tsc --noEmit` -> clean. `git status --short` -> clean working tree, everything committed. All three original test-coverage gaps (search, join, remove-outdated) are closed with dedicated tests using mocked already-logged-in sessions; all three UI polish items (search icon, skill gauge, icon-forward empty states) are implemented on top of the existing court-card design system without a redesign. Spec requirements fully met.
 
 ---
 
