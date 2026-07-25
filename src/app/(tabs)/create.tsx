@@ -4,23 +4,14 @@ import { useRouter } from 'expo-router';
 import { DateTimePicker } from '@expo/ui/community/datetime-picker';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
+import { type SkillBandId } from '@/lib/skill-bands';
+import { validateEventDraft } from '@/lib/event-draft';
 import { VenuePicker, type Venue } from '@/components/venue-picker';
 import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
 import { ActionButton } from '@/components/action-button';
 import { SkillBandSelector } from '@/components/skill-band-selector';
 import { SectionDivider } from '@/components/section-divider';
 import { FieldCard } from '@/components/field-card';
-
-const START_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
-
-function combineDateAndTimeText(date: Date, timeText: string): Date | null {
-  const match = timeText.trim().match(START_TIME_PATTERN);
-  if (!match) return null;
-  const combined = new Date(date);
-  combined.setHours(Number(match[1]), Number(match[2]), 0, 0);
-  return combined;
-}
 
 export default function CreateEventScreen() {
   const { session } = useAuth();
@@ -46,59 +37,37 @@ export default function CreateEventScreen() {
       setSubmitError('You must be signed in to create an event.');
       return;
     }
-    if (!title.trim()) {
-      setSubmitError('Title is required.');
+
+    const result = validateEventDraft({
+      title,
+      venueId: venue?.id ?? null,
+      headcountText,
+      feeText,
+      durationMinutesText,
+      fromBandId,
+      toBandId,
+      date,
+      startTimeText,
+    });
+    if (!result.ok) {
+      setSubmitError(result.error);
       return;
     }
-    if (!venue) {
-      setSubmitError('Please select or add a venue.');
-      return;
-    }
-    const headcountMax = parseInt(headcountText, 10);
-    if (!Number.isInteger(headcountMax) || headcountMax <= 0) {
-      setSubmitError('Number of people must be a positive whole number.');
-      return;
-    }
-    const fee = feeText.trim() === '' ? 0 : Number(feeText);
-    if (!Number.isInteger(fee) || fee < 0) {
-      setSubmitError('Fee must be zero or a positive whole number.');
-      return;
-    }
-    const durationMinutes = parseInt(durationMinutesText, 10);
-    if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
-      setSubmitError('Duration must be a positive number of minutes.');
-      return;
-    }
-    const fromIndex = SKILL_BANDS.findIndex((band) => band.id === fromBandId);
-    const toIndex = SKILL_BANDS.findIndex((band) => band.id === toBandId);
-    if (fromIndex > toIndex) {
-      setSubmitError('Skill range "from" must not be above "to".');
-      return;
-    }
-    const startDateTime = combineDateAndTimeText(date, startTimeText);
-    if (!startDateTime) {
-      setSubmitError('Start time must be in 24-hour HH:MM format, e.g. 18:30.');
-      return;
-    }
-    if (startDateTime.getTime() <= Date.now()) {
-      setSubmitError('Start time must be in the future.');
-      return;
-    }
-    const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60_000);
+    const event = result.event;
 
     setSubmitting(true);
     try {
       const { error } = await supabase.from('events').insert({
         organizer_id: session.user.id,
-        venue_id: venue.id,
-        title: title.trim(),
+        venue_id: event.venueId,
+        title: event.title,
         description: description.trim() || null,
-        fee,
-        start_time: startDateTime.toISOString(),
-        end_time: endDateTime.toISOString(),
-        headcount_max: headcountMax,
-        skill_min: SKILL_BANDS[fromIndex].min,
-        skill_max: SKILL_BANDS[toIndex].max,
+        fee: event.fee,
+        start_time: event.startTime.toISOString(),
+        end_time: event.endTime.toISOString(),
+        headcount_max: event.headcountMax,
+        skill_min: event.skillMin,
+        skill_max: event.skillMax,
       });
       if (error) throw error;
       router.replace('/');
