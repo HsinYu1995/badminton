@@ -65,12 +65,23 @@ async function main() {
   const { data: aliceRows } = await admin.from('event_participants').select('event_id, status').eq('user_id', alice.userId);
   assert.strictEqual(aliceRows.length, 2, 'Alice should hold two independent pending requests, one per event');
 
-  const { error: withdrawErr } = await alice.client
+  // Cancelling now deletes the row outright (not update-to-declined), so a
+  // later change of heart can send a fresh request - see
+  // supabase/migrations/20260725064939_participants_self_delete.sql.
+  const { error: cancelErr } = await alice.client
     .from('event_participants')
-    .update({ status: 'declined' })
+    .delete()
     .eq('event_id', eventA.id)
     .eq('user_id', alice.userId);
-  assert(!withdrawErr, `Alice withdrawing from Game A failed: ${withdrawErr?.message}`);
+  assert(!cancelErr, `Alice cancelling Game A failed: ${cancelErr?.message}`);
+
+  const { data: gameARowAfterCancel } = await admin
+    .from('event_participants')
+    .select('id')
+    .eq('event_id', eventA.id)
+    .eq('user_id', alice.userId)
+    .maybeSingle();
+  assert(!gameARowAfterCancel, 'Cancelled row should be gone entirely, not just marked declined');
 
   const { data: gameBRow } = await admin
     .from('event_participants')
@@ -78,14 +89,30 @@ async function main() {
     .eq('event_id', eventB.id)
     .eq('user_id', alice.userId)
     .single();
-  assert.strictEqual(gameBRow.status, 'pending', "Withdrawing from Game A must not affect Alice's Game B request");
+  assert.strictEqual(gameBRow.status, 'pending', "Cancelling Game A must not affect Alice's Game B request");
 
   const { error: reJoinErr } = await alice.client
     .from('event_participants')
     .insert({ event_id: eventA.id, user_id: alice.userId, status: 'pending' });
-  assert(reJoinErr, 'Re-inserting into Game A after withdrawal should fail (unique(event_id, user_id) already holds a declined row)');
+  assert(!reJoinErr, `Alice should be able to re-request Game A after cancelling: ${reJoinErr?.message}`);
 
-  console.log('PASS: a user can hold independent pending requests on multiple different events, withdrawing from one leaves the others untouched, and a withdrawn request cannot be silently re-created');
+  const { error: bobDeletesAliceErr } = await bob.client
+    .from('event_participants')
+    .delete()
+    .eq('event_id', eventA.id)
+    .eq('user_id', alice.userId);
+  const { data: aliceRowStillThere } = await admin
+    .from('event_participants')
+    .select('id')
+    .eq('event_id', eventA.id)
+    .eq('user_id', alice.userId)
+    .maybeSingle();
+  assert(
+    bobDeletesAliceErr || aliceRowStillThere,
+    "RLS should block Bob (the organizer) from deleting Alice's participant row - only Alice can remove her own"
+  );
+
+  console.log('PASS: a user can hold independent pending requests on multiple different events, cancelling one leaves the others untouched, a cancelled request can be re-sent, and only the requester can remove their own row');
 }
 
 main()
