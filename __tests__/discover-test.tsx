@@ -50,7 +50,17 @@ jest.mock('@/lib/supabase', () => ({
         return {
           select: () => ({
             eq: () => Promise.resolve({ data: [], error: null }),
-            in: () => ({ in: () => Promise.resolve({ data: [], error: null }) }),
+            in: () => ({
+              in: () =>
+                Promise.resolve({
+                  data: [
+                    { event_id: 'event-1', status: 'pending' },
+                    { event_id: 'event-1', status: 'pending' },
+                    { event_id: 'event-1', status: 'accepted' },
+                  ],
+                  error: null,
+                }),
+            }),
           }),
         };
       }
@@ -70,6 +80,11 @@ it(
     expect(screen.getByText(/Fake Gym/)).toBeTruthy();
     expect(screen.getByText(/Free/)).toBeTruthy();
     expect(screen.getByText(/NT\$150/)).toBeTruthy();
+    // event-1 has 3 active (pending + accepted) participant rows in the mock;
+    // event-2 has none, so it falls back to the "Up to N" phrasing instead of
+    // claiming a fetched-but-actually-zero count.
+    expect(screen.getByText('3/8 players')).toBeTruthy();
+    expect(screen.getByText('Up to 4 players')).toBeTruthy();
   },
   15000
 );

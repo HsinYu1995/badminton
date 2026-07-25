@@ -42,8 +42,12 @@ jest.mock('@/lib/supabase', () => ({
   },
 }));
 
+beforeEach(() => {
+  mockProfileUpdateEq.mockClear();
+});
+
 it(
-  'edits and saves skill level, bio, and contact info',
+  'edits and saves display name, skill level, bio, and contact info, updating the corner name immediately',
   async () => {
     await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)/profile' });
 
@@ -51,6 +55,7 @@ it(
     // skill_level 8 falls in the "intermediate" band (see src/lib/skill-bands.ts) - confirm it's pre-selected.
     expect(screen.getByRole('button', { name: 'Intermediate', selected: true })).toBeTruthy();
 
+    await fireEvent.changeText(screen.getByPlaceholderText('How other players see you'), 'Ace Server');
     await fireEvent.changeText(
       screen.getByPlaceholderText('Tell other players a bit about yourself'),
       'Weekend warrior, mostly doubles.'
@@ -62,12 +67,29 @@ it(
 
     await waitFor(() => expect(mockProfileUpdateEq).toHaveBeenCalledTimes(1));
     expect(mockProfileUpdateEq).toHaveBeenCalledWith({
-      display_name: 'Fake Player',
+      display_name: 'Ace Server',
       bio: 'Weekend warrior, mostly doubles.',
       contact_info: 'LINE: fakeplayer',
       skill_level: 13,
     });
     expect(await screen.findByText('Profile saved.')).toBeTruthy();
+    expect(screen.getByText('Ace Server')).toBeTruthy();
+    expect(screen.queryByText('Fake Player')).toBeNull();
+  },
+  15000
+);
+
+it(
+  'blocks saving with an empty display name',
+  async () => {
+    await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)/profile' });
+
+    await screen.findByText('Fake Player');
+    await fireEvent.changeText(screen.getByPlaceholderText('How other players see you'), '   ');
+    await fireEvent.press(screen.getByText('Save profile'));
+
+    expect(await screen.findByText('Display name is required.')).toBeTruthy();
+    expect(mockProfileUpdateEq).not.toHaveBeenCalled();
   },
   15000
 );
