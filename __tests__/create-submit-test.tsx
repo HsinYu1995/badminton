@@ -40,9 +40,11 @@ jest.mock('@/lib/supabase', () => ({
 }));
 
 it(
-  'creates an event once all fields are valid, using the picker defaults as a future start time',
+  'creates an event once all fields are valid, typing a start time matching the picker mount-time default',
   async () => {
     const mountTime = Date.now();
+    const mountDate = new Date(mountTime);
+    const startTimeText = `${String(mountDate.getHours()).padStart(2, '0')}:${String(mountDate.getMinutes()).padStart(2, '0')}`;
 
     await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)/create' });
     await screen.findByText('🏸 Host a game');
@@ -50,13 +52,15 @@ it(
     await fireEvent.changeText(screen.getByPlaceholderText('Friendly doubles'), 'Weekend Doubles');
     await waitFor(() => screen.getByText(mockVenue.name));
     await fireEvent.press(screen.getByText(mockVenue.name));
+    await fireEvent.changeText(screen.getByPlaceholderText('18:30'), startTimeText);
 
     // Only Date.now() decides the "must be in the future" check (see
-    // combineDateAndTime + the check in create.tsx) - the DatePicker/Picker
-    // themselves are native SwiftUI-backed views we can't drive from a JS
-    // test, so we hold their mount-time default and instead move what "now"
-    // reads as, back behind that default, like a clock ticking forward past
-    // the moment the organizer opened the form would.
+    // combineDateAndTimeText + the check in create.tsx) - the Date field's
+    // DatePicker is a native SwiftUI-backed view we can't drive from a JS
+    // test, so we hold its mount-time default (today's date) and pair it
+    // with a typed start time matching that same mount instant, then move
+    // what "now" reads as back behind that instant, like a clock ticking
+    // forward past the moment the organizer opened the form would.
     const dateNowSpy = jest.spyOn(Date, 'now').mockReturnValue(mountTime - 60_000);
     await fireEvent.press(screen.getByText('Create event'));
     // handleSubmit reads Date.now() synchronously before its first await, so

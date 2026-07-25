@@ -12,9 +12,13 @@ import { SkillBandSelector } from '@/components/skill-band-selector';
 import { SectionDivider } from '@/components/section-divider';
 import { FieldCard } from '@/components/field-card';
 
-function combineDateAndTime(date: Date, time: Date): Date {
+const START_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+function combineDateAndTimeText(date: Date, timeText: string): Date | null {
+  const match = timeText.trim().match(START_TIME_PATTERN);
+  if (!match) return null;
   const combined = new Date(date);
-  combined.setHours(time.getHours(), time.getMinutes(), 0, 0);
+  combined.setHours(Number(match[1]), Number(match[2]), 0, 0);
   return combined;
 }
 
@@ -28,7 +32,7 @@ export default function CreateEventScreen() {
   const [headcountText, setHeadcountText] = useState('8');
   const [feeText, setFeeText] = useState('0');
   const [date, setDate] = useState(new Date());
-  const [startTime, setStartTime] = useState(new Date());
+  const [startTimeText, setStartTimeText] = useState('');
   const [durationMinutesText, setDurationMinutesText] = useState('90');
   const [fromBandId, setFromBandId] = useState<SkillBandId>('novice');
   const [toBandId, setToBandId] = useState<SkillBandId>('professional');
@@ -71,7 +75,11 @@ export default function CreateEventScreen() {
       setSubmitError('Skill range "from" must not be above "to".');
       return;
     }
-    const startDateTime = combineDateAndTime(date, startTime);
+    const startDateTime = combineDateAndTimeText(date, startTimeText);
+    if (!startDateTime) {
+      setSubmitError('Start time must be in 24-hour HH:MM format, e.g. 18:30.');
+      return;
+    }
     if (startDateTime.getTime() <= Date.now()) {
       setSubmitError('Start time must be in the future.');
       return;
@@ -138,9 +146,16 @@ export default function CreateEventScreen() {
         <DateTimePicker mode="date" value={date} onValueChange={(_event, newDate) => setDate(newDate)} presentation="inline" display="spinner" />
       </FieldCard>
 
-      <FieldCard icon="🕒" label="Start time">
-        <DateTimePicker mode="time" value={startTime} onValueChange={(_event, newTime) => setStartTime(newTime)} presentation="inline" display="spinner" />
-      </FieldCard>
+      <Text style={styles.label}>🕒 Start time (24-hour, e.g. 18:30)</Text>
+      <TextInput
+        style={styles.input}
+        value={startTimeText}
+        onChangeText={setStartTimeText}
+        placeholder="18:30"
+        placeholderTextColor={Court.inkSecondary}
+        keyboardType="numbers-and-punctuation"
+        maxLength={5}
+      />
 
       <Text style={styles.label}>⏱️ Duration (minutes)</Text>
       <TextInput
