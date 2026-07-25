@@ -1,11 +1,12 @@
 import { SplashScreen, Stack } from 'expo-router';
+import { useFonts, LeagueSpartan_700Bold, LeagueSpartan_800ExtraBold } from '@expo-google-fonts/league-spartan';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 
 SplashScreen.preventAutoHideAsync();
 
-function SplashScreenController() {
+function SplashScreenController({ fontsLoaded }: { fontsLoaded: boolean }) {
   const { isLoading } = useAuth();
-  if (!isLoading) {
+  if (!isLoading && fontsLoaded) {
     SplashScreen.hide();
   }
   return null;
@@ -27,10 +28,12 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({ LeagueSpartan_700Bold, LeagueSpartan_800ExtraBold });
+
   return (
     <AuthProvider>
-      <SplashScreenController />
-      <RootNavigator />
+      <SplashScreenController fontsLoaded={fontsLoaded} />
+      {fontsLoaded && <RootNavigator />}
     </AuthProvider>
   );
 }

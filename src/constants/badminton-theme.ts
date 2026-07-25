@@ -4,15 +4,16 @@
 
 export const Court = {
   green: '#0B6E4F',
+  greenDeep: '#083D2C', // header/hero surface - darker than greenDark for real contrast
   greenDark: '#074A35',
   greenTint: '#E6F4EC',
-  shuttle: '#FFFDF8',
+  shuttle: '#F7F5EE', // "chalk" - warmer than pure white, like a court sideline or shuttle cork
   line: '#D8E6DC',
-  ink: '#173226',
+  ink: '#22302B', // "net charcoal" - deep charcoal-green, not flat black
   inkSecondary: '#5B7268',
-  feather: '#F2A93C',
+  feather: '#E8A33D', // "shuttle gold" - cork-and-feather gold, not generic orange
   featherDark: '#C9820F',
-  danger: '#D64545',
+  danger: '#D6455B', // "rally red" - a line-judge call, not a stop sign
   dangerTint: '#FCEAEA',
 } as const;
 
@@ -31,6 +32,17 @@ export const Space = {
   xl: 24,
 } as const;
 
+// The one signature typographic move: a condensed, bold display face for
+// screen titles, event titles, and every number that matters (skill level,
+// fee, headcount) - it reads like scoreboard/jersey numerals, which is
+// specific to the sport, instead of leaning on the system font everywhere.
+// Body text stays on the system font (loaded via @expo-google-fonts/league-spartan
+// in src/app/_layout.tsx) so the boldness is spent in exactly one place.
+export const Font = {
+  display: 'LeagueSpartan_700Bold',
+  displayBlack: 'LeagueSpartan_800ExtraBold',
+} as const;
+
 // One accent per skill band (src/lib/skill-bands.ts), novice -> professional,
 // so a glance at an event card's left stripe reads as "how competitive is this"
 // before you even read the skill-range text.
@@ -41,7 +53,7 @@ export const SkillBandAccents: Record<string, string> = {
   intermediate: '#0B6E4F',
   intermediate_advanced: '#C9820F',
   advanced: '#E08E1D',
-  professional: '#D64545',
+  professional: '#D6455B',
 };
 
 export const Shadow = {

@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { Text, TextInput, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { DateTimePicker } from '@expo/ui/community/datetime-picker';
-import { Picker } from '@expo/ui/community/picker';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
 import { VenuePicker, type Venue } from '@/components/venue-picker';
-import { Court, Radius, Space } from '@/constants/badminton-theme';
+import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
 import { ActionButton } from '@/components/action-button';
+import { SkillBandSelector } from '@/components/skill-band-selector';
+import { SectionDivider } from '@/components/section-divider';
 
 function combineDateAndTime(date: Date, time: Date): Date {
   const combined = new Date(date);
@@ -103,6 +104,7 @@ export default function CreateEventScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
       <Text style={styles.title}>🏸 Host a game</Text>
       <Text style={styles.subtitle}>Fill in the details so players know what to expect</Text>
+      <SectionDivider />
 
       <Text style={styles.label}>Event title</Text>
       <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Friendly doubles" placeholderTextColor={Court.inkSecondary} />
@@ -146,18 +148,10 @@ export default function CreateEventScreen() {
       />
 
       <Text style={styles.label}>🏆 Skill range: from</Text>
-      <Picker selectedValue={fromBandId} onValueChange={(value) => setFromBandId(value as SkillBandId)}>
-        {SKILL_BANDS.map((band) => (
-          <Picker.Item key={band.id} label={band.label} value={band.id} />
-        ))}
-      </Picker>
+      <SkillBandSelector selectedId={fromBandId} onSelect={setFromBandId} />
 
       <Text style={styles.label}>🏆 Skill range: to</Text>
-      <Picker selectedValue={toBandId} onValueChange={(value) => setToBandId(value as SkillBandId)}>
-        {SKILL_BANDS.map((band) => (
-          <Picker.Item key={band.id} label={band.label} value={band.id} />
-        ))}
-      </Picker>
+      <SkillBandSelector selectedId={toBandId} onSelect={setToBandId} />
 
       <ActionButton
         label={submitting ? 'Creating...' : 'Create event'}
@@ -173,7 +167,7 @@ export default function CreateEventScreen() {
 const styles = StyleSheet.create({
   screen: { backgroundColor: Court.greenTint },
   container: { padding: Space.lg, gap: 4, paddingBottom: Space.xl * 2 },
-  title: { fontSize: 26, fontWeight: '800', color: Court.ink, marginBottom: 2 },
+  title: { fontSize: 28, fontFamily: Font.displayBlack, color: Court.ink, marginBottom: 2 },
   subtitle: { color: Court.inkSecondary, marginBottom: Space.md },
   label: { fontWeight: '700', color: Court.ink, marginTop: Space.md },
   input: {
