@@ -713,6 +713,7 @@ Append a closing entry to this file's Progress Ledger summarizing total suites/t
 - **2026-07-24, baseline fix (pre-Task 1, commit `54d56dc`):** Discovered and fixed a real bug before starting: every existing test's mocked `useAuth()` returned a fresh `session` object literal per call, which broke `DiscoverScreen`'s `loadEvents` `useCallback([session])` -> `useFocusEffect` chain into an infinite render loop, hanging any test that mounted the Discover tab for the full per-test timeout. Fixed by using a module-level `FAKE_SESSION` constant in all three existing test mocks, plus fixed `discover-test.tsx`'s missing `event_participants.eq()` mock and a stale exact-text assertion against the venue name. Full suite: 3/3 passed.
 - **2026-07-24, Task 1 (`discover-search-test.tsx`):** Added the search-filter test. First attempt failed because `fireEvent.changeText` wasn't awaited, so the assertion ran before the filtered re-render committed - fixed by awaiting it (matching the pattern already used elsewhere in this test suite). Full suite: 4/4 passed.
 - **2026-07-24, Task 2 (`discover-join-test.tsx`):** Added the join-flow test. Passed on the first run. Full suite: 5/5 passed.
+- **2026-07-24, Task 3 (`profile-remove-test.tsx`):** Added the remove-outdated-event test. Passed on the first run. Full suite: 6/6 passed.
 
 ---
 
