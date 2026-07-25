@@ -56,6 +56,7 @@
     "test:create-event": "node --env-file=.env.local tests/create-event.test.mjs",
     "test:skill-bands": "node --env-file=.env.local tests/skill-bands.test.mjs",
     "test:auth-session": "node --env-file=.env.local tests/auth-session.test.mjs",
+    "test:profile-edit": "node --env-file=.env.local tests/profile-edit.test.mjs",
     "test": "jest"
   },
   "private": true,
