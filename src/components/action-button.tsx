@@ -1,5 +1,5 @@
 import { Pressable, Text, StyleSheet, ActivityIndicator, type ViewStyle } from 'react-native';
-import { Court, Radius, Space } from '@/constants/badminton-theme';
+import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
 
 type Variant = 'primary' | 'outline' | 'danger' | 'muted';
 
@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   label: {
-    fontWeight: '700',
-    fontSize: 14,
+    fontFamily: Font.display,
+    fontSize: 15,
   },
 });

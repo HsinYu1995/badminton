@@ -1,5 +1,5 @@
 import { Text, View, StyleSheet, type ViewStyle } from 'react-native';
-import { Court, Radius, Space } from '@/constants/badminton-theme';
+import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
 
 type PillProps = {
   label: string;
@@ -32,6 +32,6 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: Font.display,
   },
 });

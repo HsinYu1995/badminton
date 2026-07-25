@@ -4,10 +4,11 @@ import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-nat
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { isPastEvent, type EventListItem } from '@/lib/events';
-import { Court, Space } from '@/constants/badminton-theme';
+import { Court, Font, Space } from '@/constants/badminton-theme';
 import { EventCard } from '@/components/event-card';
 import { SearchBar } from '@/components/search-bar';
 import { ActionButton } from '@/components/action-button';
+import { SectionDivider } from '@/components/section-divider';
 
 const EVENT_COLUMNS = 'id, organizer_id, title, start_time, end_time, headcount_max, skill_min, skill_max, fee, venues(name)';
 
@@ -91,6 +92,7 @@ export default function DiscoverScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>🏸 Discover</Text>
         <Text style={styles.subtitle}>Find a pickup game near you</Text>
+        <SectionDivider />
         <SearchBar value={query} onChangeText={setQuery} placeholder="Search by title or venue" />
       </View>
 
@@ -143,13 +145,13 @@ export default function DiscoverScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Court.greenTint },
   header: { padding: Space.lg, gap: Space.sm, backgroundColor: Court.greenTint },
-  title: { fontSize: 26, fontWeight: '800', color: Court.ink },
+  title: { fontSize: 28, fontFamily: Font.displayBlack, color: Court.ink },
   subtitle: { color: Court.inkSecondary, marginBottom: Space.xs },
   spinner: { marginTop: Space.xl },
   list: { padding: Space.lg, paddingTop: 0 },
   emptyState: { alignItems: 'center', marginTop: Space.xl, gap: 4 },
   emptyEmoji: { fontSize: 40, marginBottom: Space.xs },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: Court.ink },
+  emptyTitle: { fontSize: 17, fontFamily: Font.display, color: Court.ink },
   emptySubtext: { color: Court.inkSecondary, textAlign: 'center' },
   error: { color: Court.danger, marginBottom: Space.sm },
   ownEventLabel: { color: Court.green, fontWeight: '700' },

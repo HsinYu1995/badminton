@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Text } from 'react-native';
-import { Court } from '@/constants/badminton-theme';
+import { Court, Font } from '@/constants/badminton-theme';
 
 function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }) {
   return <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>{emoji}</Text>;
@@ -13,10 +13,10 @@ export default function TabsLayout() {
         tabBarActiveTintColor: Court.featherDark,
         tabBarInactiveTintColor: Court.inkSecondary,
         tabBarStyle: { backgroundColor: Court.shuttle, borderTopColor: Court.line },
-        tabBarLabelStyle: { fontWeight: '700', fontSize: 12 },
-        headerStyle: { backgroundColor: Court.green },
+        tabBarLabelStyle: { fontFamily: Font.display, fontSize: 12 },
+        headerStyle: { backgroundColor: Court.greenDeep },
         headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: '800' },
+        headerTitleStyle: { fontFamily: Font.displayBlack, fontSize: 20 },
       }}
     >
       <Tabs.Screen

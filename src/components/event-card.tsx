@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Court, Radius, Shadow, Space, SkillBandAccents } from '@/constants/badminton-theme';
+import { Court, Font, Radius, Shadow, Space, SkillBandAccents } from '@/constants/badminton-theme';
 import { bandForLevel } from '@/lib/skill-bands';
 import { formatFee, formatStartTime, isPastEvent, type EventListItem } from '@/lib/events';
 import { Pill } from '@/components/pill';
@@ -92,8 +92,8 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 18,
+    fontFamily: Font.displayBlack,
     color: Court.ink,
   },
   meta: {

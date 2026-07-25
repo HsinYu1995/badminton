@@ -5,10 +5,11 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { isPastEvent, type EventListItem } from '@/lib/events';
 import { bandForLevel } from '@/lib/skill-bands';
-import { Court, Space } from '@/constants/badminton-theme';
+import { Court, Font, Space } from '@/constants/badminton-theme';
 import { EventCard } from '@/components/event-card';
 import { ActionButton } from '@/components/action-button';
 import { Pill } from '@/components/pill';
+import { SectionDivider } from '@/components/section-divider';
 
 const EVENT_COLUMNS = 'id, organizer_id, title, start_time, end_time, headcount_max, skill_min, skill_max, fee, venues(name)';
 
@@ -91,6 +92,7 @@ export default function ProfileScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>My events</Text>
+        <SectionDivider />
         {loading && <ActivityIndicator color={Court.green} />}
         {!loading && loadError && <Text style={styles.error}>{loadError}</Text>}
         {!loading && !loadError && myEvents.length === 0 && (
@@ -141,13 +143,13 @@ const styles = StyleSheet.create({
     borderColor: Court.feather,
   },
   avatarEmoji: { fontSize: 32 },
-  name: { fontSize: 20, fontWeight: '700', color: Court.ink },
+  name: { fontSize: 22, fontFamily: Font.displayBlack, color: Court.ink },
   signOutButton: { marginTop: Space.sm },
   section: { gap: Space.sm },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: Court.ink, marginBottom: Space.xs },
+  sectionTitle: { fontSize: 20, fontFamily: Font.displayBlack, color: Court.ink, marginBottom: 0 },
   emptyState: { alignItems: 'center', marginTop: Space.xl, gap: 4 },
   emptyEmoji: { fontSize: 40, marginBottom: Space.xs },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: Court.ink },
+  emptyTitle: { fontSize: 17, fontFamily: Font.display, color: Court.ink },
   emptySubtext: { color: Court.inkSecondary, textAlign: 'center' },
   error: { color: Court.danger },
   upcomingLabel: { color: Court.green, fontWeight: '700' },
