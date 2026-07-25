@@ -3,7 +3,7 @@ import { SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
 import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
 
 type SkillBandSelectorProps = {
-  selectedId: SkillBandId;
+  selectedId: SkillBandId | null;
   onSelect: (id: SkillBandId) => void;
 };
 
