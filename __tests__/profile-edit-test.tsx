@@ -35,7 +35,15 @@ jest.mock('@/lib/supabase', () => ({
         return { select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }) };
       }
       if (table === 'event_participants') {
-        return { select: () => ({ in: () => ({ in: () => Promise.resolve({ data: [], error: null }) }) }) };
+        return {
+          select: () => ({
+            in: () => ({ in: () => Promise.resolve({ data: [], error: null }) }),
+            eq: (column: string) =>
+              column === 'user_id'
+                ? { eq: () => Promise.resolve({ data: [], error: null }) }
+                : Promise.resolve({ data: [], error: null }),
+          }),
+        };
       }
       throw new Error(`Unexpected table in mock: ${table}`);
     },

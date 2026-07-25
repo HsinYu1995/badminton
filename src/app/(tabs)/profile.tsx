@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +8,7 @@ import { bandForLevel, SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
 import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
 import { EventCard } from '@/components/event-card';
 import { ActionButton } from '@/components/action-button';
+import { Pill } from '@/components/pill';
 import { SkillBandSelector } from '@/components/skill-band-selector';
 import { SectionDivider } from '@/components/section-divider';
 
@@ -20,16 +21,27 @@ type ProfileRow = {
   contact_info: string | null;
 };
 
+type OrganizerInfo = {
+  display_name: string;
+  skill_level: number | null;
+  contact_info: string | null;
+};
+
+type AttendingEvent = EventListItem & { organizer: OrganizerInfo | null };
+
 export default function ProfileScreen() {
   const { session, signOut } = useAuth();
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [myEvents, setMyEvents] = useState<EventListItem[]>([]);
+  const [attendingEvents, setAttendingEvents] = useState<AttendingEvent[]>([]);
   const [participantCounts, setParticipantCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [removingEventId, setRemovingEventId] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [leavingEventId, setLeavingEventId] = useState<string | null>(null);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
 
   const [displayNameText, setDisplayNameText] = useState('');
   const [bioText, setBioText] = useState('');
@@ -58,26 +70,60 @@ export default function ProfileScreen() {
       setSkillBandId(profileData.skill_level != null ? bandForLevel(profileData.skill_level).id : null);
     }
 
+    let loadedEvents: EventListItem[] = [];
     if (eventsErr) setLoadError((prev) => prev ?? eventsErr.message);
     else {
-      const loadedEvents = (eventsData as unknown as EventListItem[] | null) ?? [];
+      loadedEvents = (eventsData as unknown as EventListItem[] | null) ?? [];
       setMyEvents(loadedEvents);
+    }
 
-      const eventIds = loadedEvents.map((event) => event.id);
-      if (eventIds.length > 0) {
-        const { data: participantRows } = await supabase
-          .from('event_participants')
-          .select('event_id, status')
-          .in('event_id', eventIds)
-          .in('status', ACTIVE_PARTICIPANT_STATUSES);
-        const counts: Record<string, number> = {};
-        for (const row of participantRows ?? []) {
-          counts[row.event_id] = (counts[row.event_id] ?? 0) + 1;
+    const { data: acceptedRows, error: acceptedErr } = await supabase
+      .from('event_participants')
+      .select('event_id')
+      .eq('user_id', session.user.id)
+      .eq('status', 'accepted');
+    let loadedAttendingEvents: AttendingEvent[] = [];
+    if (acceptedErr) setLoadError((prev) => prev ?? acceptedErr.message);
+    else {
+      const attendingEventIds = (acceptedRows ?? []).map((row) => row.event_id);
+      if (attendingEventIds.length > 0) {
+        const { data: attendingEventsData, error: attendingEventsErr } = await supabase
+          .from('events')
+          .select(EVENT_COLUMNS)
+          .in('id', attendingEventIds)
+          .order('start_time');
+        if (attendingEventsErr) setLoadError((prev) => prev ?? attendingEventsErr.message);
+        else {
+          const rawAttendingEvents = (attendingEventsData as unknown as EventListItem[] | null) ?? [];
+          const organizerIds = [...new Set(rawAttendingEvents.map((event) => event.organizer_id))];
+          const { data: organizerRows } = await supabase
+            .from('profiles')
+            .select('id, display_name, skill_level, contact_info')
+            .in('id', organizerIds);
+          const organizerById = new Map((organizerRows ?? []).map((row) => [row.id, row]));
+          loadedAttendingEvents = rawAttendingEvents.map((event) => ({
+            ...event,
+            organizer: organizerById.get(event.organizer_id) ?? null,
+          }));
         }
-        setParticipantCounts(counts);
-      } else {
-        setParticipantCounts({});
       }
+      setAttendingEvents(loadedAttendingEvents);
+    }
+
+    const allEventIds = [...loadedEvents.map((event) => event.id), ...loadedAttendingEvents.map((event) => event.id)];
+    if (allEventIds.length > 0) {
+      const { data: participantRows } = await supabase
+        .from('event_participants')
+        .select('event_id, status')
+        .in('event_id', allEventIds)
+        .in('status', ACTIVE_PARTICIPANT_STATUSES);
+      const counts: Record<string, number> = {};
+      for (const row of participantRows ?? []) {
+        counts[row.event_id] = (counts[row.event_id] ?? 0) + 1;
+      }
+      setParticipantCounts(counts);
+    } else {
+      setParticipantCounts({});
     }
 
     setLoading(false);
@@ -142,6 +188,25 @@ export default function ProfileScreen() {
       setRemoveError(err instanceof Error ? err.message : 'Could not remove event.');
     } finally {
       setRemovingEventId(null);
+    }
+  }
+
+  async function handleLeaveEvent(event: EventListItem) {
+    if (!session) return;
+    setLeaveError(null);
+    setLeavingEventId(event.id);
+    try {
+      const { error } = await supabase
+        .from('event_participants')
+        .delete()
+        .eq('event_id', event.id)
+        .eq('user_id', session.user.id);
+      if (error) throw error;
+      setAttendingEvents((prev) => prev.filter((e) => e.id !== event.id));
+    } catch (err) {
+      setLeaveError(err instanceof Error ? err.message : 'Could not leave event.');
+    } finally {
+      setLeavingEventId(null);
     }
   }
 
@@ -211,6 +276,51 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Games I'm playing</Text>
+        <SectionDivider />
+        {loading && <ActivityIndicator color={Court.green} />}
+        {!loading && !loadError && attendingEvents.length === 0 && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyEmoji}>🏸</Text>
+            <Text style={styles.emptyTitle}>No games joined yet</Text>
+            <Text style={styles.emptySubtext}>Head to Discover to find a pickup game.</Text>
+          </View>
+        )}
+        {leaveError && <Text style={styles.error}>{leaveError}</Text>}
+        {!loading &&
+          !loadError &&
+          attendingEvents.map((event) => (
+            <View key={event.id}>
+              <EventCard
+                event={event}
+                participantCount={1 + (participantCounts[event.id] ?? 0)}
+                action={
+                  isPastEvent(event) ? undefined : (
+                    <ActionButton
+                      label="Leave event"
+                      onPress={() => handleLeaveEvent(event)}
+                      variant="danger"
+                      loading={leavingEventId === event.id}
+                    />
+                  )
+                }
+              />
+              {event.organizer && (
+                <View style={styles.organizerCard}>
+                  <Text style={styles.organizerLabel}>🧑 Organized by {event.organizer.display_name}</Text>
+                  <View style={styles.pillRowSmall}>
+                    {event.organizer.skill_level != null && (
+                      <Pill label={bandForLevel(event.organizer.skill_level).label} tone="green" />
+                    )}
+                    {event.organizer.contact_info && <Pill label={event.organizer.contact_info} tone="feather" />}
+                  </View>
+                </View>
+              )}
+            </View>
+          ))}
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>My events</Text>
         <SectionDivider />
         {loading && <ActivityIndicator color={Court.green} />}
@@ -226,26 +336,82 @@ export default function ProfileScreen() {
         {!loading &&
           !loadError &&
           myEvents.map((event) => (
-            <EventCard
-              key={event.id}
-              event={event}
-              participantCount={participantCounts[event.id]}
-              action={
-                isPastEvent(event) ? (
-                  <ActionButton
-                    label="Remove outdated event"
-                    onPress={() => handleRemoveOutdated(event)}
-                    variant="danger"
-                    loading={removingEventId === event.id}
-                  />
-                ) : (
-                  <Text style={styles.upcomingLabel}>Upcoming</Text>
-                )
-              }
-            />
+            <View key={event.id}>
+              <EventCard
+                event={event}
+                participantCount={1 + (participantCounts[event.id] ?? 0)}
+                action={
+                  isPastEvent(event) ? (
+                    <ActionButton
+                      label="Remove outdated event"
+                      onPress={() => handleRemoveOutdated(event)}
+                      variant="danger"
+                      loading={removingEventId === event.id}
+                    />
+                  ) : (
+                    <Text style={styles.upcomingLabel}>Upcoming</Text>
+                  )
+                }
+              />
+              <AttendeeRoster eventId={event.id} />
+            </View>
           ))}
       </View>
     </ScrollView>
+  );
+}
+
+type Attendee = {
+  user_id: string;
+  status: 'pending' | 'accepted' | 'declined';
+  profiles: { display_name: string; skill_level: number | null; contact_info: string | null } | null;
+};
+
+// A small self-fetching block rather than threading roster data through
+// ProfileScreen's own state - each organized event's attendee list is
+// independent of the rest of the screen's load/save cycle, and there's no
+// other consumer that would benefit from lifting this fetch up.
+function AttendeeRoster({ eventId }: { eventId: string }) {
+  const [attendees, setAttendees] = useState<Attendee[]>([]);
+  const [loadingRoster, setLoadingRoster] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingRoster(true);
+    supabase
+      .from('event_participants')
+      .select('user_id, status, profiles(display_name, skill_level, contact_info)')
+      .eq('event_id', eventId)
+      .then(({ data }) => {
+        if (!cancelled) {
+          setAttendees((data as unknown as Attendee[] | null) ?? []);
+          setLoadingRoster(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
+
+  if (loadingRoster) return null;
+  if (attendees.length === 0) return null;
+
+  return (
+    <View style={styles.rosterCard}>
+      <Text style={styles.rosterTitle}>👥 Players ({attendees.length})</Text>
+      {attendees.map((attendee) => (
+        <View key={attendee.user_id} style={styles.rosterRow}>
+          <Text style={styles.rosterName}>{attendee.profiles?.display_name ?? 'Unknown player'}</Text>
+          <View style={styles.pillRowSmall}>
+            <Pill label={attendee.status === 'accepted' ? 'Accepted' : 'Pending'} tone={attendee.status === 'accepted' ? 'green' : 'neutral'} />
+            {attendee.profiles?.skill_level != null && (
+              <Pill label={bandForLevel(attendee.profiles.skill_level).label} tone="feather" />
+            )}
+            {attendee.profiles?.contact_info && <Pill label={attendee.profiles.contact_info} tone="neutral" />}
+          </View>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -290,4 +456,27 @@ const styles = StyleSheet.create({
   error: { color: Court.danger },
   success: { color: Court.green },
   upcomingLabel: { color: Court.green, fontWeight: '700' },
+  organizerCard: {
+    backgroundColor: Court.shuttle,
+    borderRadius: Radius.md,
+    padding: Space.sm,
+    marginTop: -Space.sm,
+    marginBottom: Space.md,
+    marginLeft: Space.sm,
+    gap: Space.xs,
+  },
+  organizerLabel: { fontFamily: Font.display, fontSize: 13, color: Court.ink },
+  pillRowSmall: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.xs },
+  rosterCard: {
+    backgroundColor: Court.shuttle,
+    borderRadius: Radius.md,
+    padding: Space.sm,
+    marginTop: -Space.sm,
+    marginBottom: Space.md,
+    marginLeft: Space.sm,
+    gap: Space.sm,
+  },
+  rosterTitle: { fontFamily: Font.display, fontSize: 13, color: Court.ink },
+  rosterRow: { gap: 4 },
+  rosterName: { fontFamily: Font.display, fontSize: 13, color: Court.ink },
 });
