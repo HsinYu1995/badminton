@@ -49,9 +49,10 @@ const rosterRows = [
 ];
 
 const mockLeaveEq = jest.fn(() => Promise.resolve({ error: null }));
-const mockAcceptEq2 = jest.fn(() => Promise.resolve({ error: null }));
+const mockAcceptEq2 = jest.fn(() => ({ select: () => Promise.resolve({ data: [{ user_id: 'participant-1' }], error: null }) }));
+const mockAcceptEq1 = jest.fn((_column: string, _value: string) => ({ eq: mockAcceptEq2 }));
 const mockParticipantUpdate = jest.fn(() => ({
-  eq: () => ({ eq: mockAcceptEq2 }),
+  eq: mockAcceptEq1,
 }));
 
 jest.mock('@/lib/auth-context', () => ({
@@ -131,7 +132,7 @@ it(
     expect(screen.getByText('LINE: coachwu')).toBeTruthy();
 
     // My events: attendee roster
-    expect(await screen.findByText('👥 Players (1)')).toBeTruthy();
+    expect(await screen.findByText('👥 Requests (1)')).toBeTruthy();
     expect(screen.getByText('Newbie Player')).toBeTruthy();
     expect(screen.getByText('Pending')).toBeTruthy();
     // "Novice" also appears as a skill chip in "My profile" - two matches.
@@ -159,7 +160,7 @@ it(
     await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)/profile' });
 
     await screen.findByText(organizedEvent.title);
-    expect(await screen.findByText('👥 Players (1)')).toBeTruthy();
+    expect(await screen.findByText('👥 Requests (1)')).toBeTruthy();
     expect(screen.getByText('Pending')).toBeTruthy();
     expect(screen.getByText('1/8 players')).toBeTruthy();
 
@@ -167,7 +168,10 @@ it(
 
     await waitFor(() => expect(mockParticipantUpdate).toHaveBeenCalledTimes(1));
     expect(mockParticipantUpdate).toHaveBeenCalledWith({ status: 'accepted' });
+    await waitFor(() => expect(mockAcceptEq1).toHaveBeenCalledTimes(1));
+    expect(mockAcceptEq1).toHaveBeenCalledWith('event_id', organizedEvent.id);
     await waitFor(() => expect(mockAcceptEq2).toHaveBeenCalledTimes(1));
+    expect(mockAcceptEq2).toHaveBeenCalledWith('user_id', 'participant-1');
 
     expect(await screen.findByText('Accepted')).toBeTruthy();
     expect(screen.queryByText('Pending')).toBeNull();

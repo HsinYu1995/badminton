@@ -548,12 +548,14 @@ function AttendeeRoster({
     setDecisionError(null);
     setDecidingUserId(userId);
     try {
-      const { error: decideErr } = await supabase
+      const { data: updated, error: decideErr } = await supabase
         .from('event_participants')
         .update({ status })
         .eq('event_id', eventId)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select('user_id');
       if (decideErr) throw decideErr;
+      if (!updated?.length) throw new Error('This request is no longer available.');
       setAttendees((prev) => prev.map((row) => (row.user_id === userId ? { ...row, status } : row)));
       if (status === 'accepted') onAccept(eventId);
     } catch (err) {
@@ -565,7 +567,7 @@ function AttendeeRoster({
 
   return (
     <View style={styles.rosterCard}>
-      <Text style={styles.rosterTitle}>👥 Players ({attendees.length})</Text>
+      <Text style={styles.rosterTitle}>👥 Requests ({attendees.length})</Text>
       {error && <Text style={styles.error}>{error}</Text>}
       {decisionError && <Text style={styles.error}>{decisionError}</Text>}
       {attendees.map((attendee) => (
