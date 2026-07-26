@@ -18,6 +18,8 @@ export type OrganizerInfo = {
 
 export type AttendingEvent = EventListItem & { organizer: OrganizerInfo | null };
 
+export type EventDetail = EventListItem & { description: string | null; organizer: OrganizerInfo | null };
+
 export type Attendee = {
   user_id: string;
   status: 'pending' | 'accepted' | 'declined';
@@ -133,4 +135,20 @@ export async function getEventRoster(supabase: SupabaseClient, eventId: string):
     .select('user_id, status, profiles(display_name, skill_level, contact_info)')
     .eq('event_id', eventId);
   return (data as unknown as Attendee[] | null) ?? [];
+}
+
+const EVENT_DETAIL_COLUMNS =
+  'id, organizer_id, title, description, start_time, end_time, headcount_max, skill_min, skill_max, fee, venues(name)';
+
+// One Event's full info for the tap-through detail screen (src/app/event/
+// [id].tsx) - deliberately just the event's own fields plus who organizes
+// it, not a re-hosting of the roster/rating UI that already lives inline
+// on Profile (see the design doc). Returns null for a missing/inaccessible
+// event rather than throwing, so the screen can show a plain "not found."
+export async function getEventDetail(supabase: SupabaseClient, eventId: string): Promise<EventDetail | null> {
+  const { data, error } = await supabase.from('events').select(EVENT_DETAIL_COLUMNS).eq('id', eventId).single();
+  if (error || !data) return null;
+  const event = data as unknown as EventListItem & { description: string | null };
+  const organizerById = await getEventOrganizers(supabase, [event.organizer_id]);
+  return { ...event, organizer: organizerById.get(event.organizer_id) ?? null };
 }

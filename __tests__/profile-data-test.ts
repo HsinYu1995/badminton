@@ -1,4 +1,4 @@
-import { loadProfileSummary, getEventRoster } from '@/lib/profile-data';
+import { loadProfileSummary, getEventRoster, getEventDetail } from '@/lib/profile-data';
 
 const ownProfile = { display_name: 'Fake Player', skill_level: 8, bio: null, contact_info: null };
 const organizedEvent = { id: 'event-organized', organizer_id: 'me' };
@@ -81,4 +81,40 @@ it('fetches the roster of a single event', async () => {
   });
 
   expect(await getEventRoster(supabase, 'event-organized')).toEqual(roster);
+});
+
+it('fetches one event\'s full detail plus its organizer', async () => {
+  const eventRow = {
+    id: 'event-organized',
+    organizer_id: 'organizer-1',
+    title: 'My Hosted Game',
+    description: 'Bring your own racket',
+    start_time: '2027-08-01T10:00:00.000Z',
+    end_time: '2027-08-01T12:00:00.000Z',
+    headcount_max: 8,
+    skill_min: 1,
+    skill_max: 18,
+    fee: 0,
+    venues: { name: 'Home Court' },
+  };
+  const supabase = fakeSupabase((table) => {
+    if (table === 'events') {
+      return { select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: eventRow, error: null }) }) }) };
+    }
+    return defaultFrom(table);
+  });
+
+  const detail = await getEventDetail(supabase, 'event-organized');
+  expect(detail).toEqual({ ...eventRow, organizer: organizerProfile });
+});
+
+it('returns null for an event that fails to load', async () => {
+  const supabase = fakeSupabase((table) => {
+    if (table === 'events') {
+      return { select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: { message: 'not found' } }) }) }) };
+    }
+    return defaultFrom(table);
+  });
+
+  expect(await getEventDetail(supabase, 'missing-event')).toBeNull();
 });

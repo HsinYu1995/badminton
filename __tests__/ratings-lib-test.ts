@@ -1,4 +1,4 @@
-import { formatCredit, getCredits, submitRating } from '@/lib/ratings';
+import { formatCredit, getCredits, getMyRatings, submitRating } from '@/lib/ratings';
 
 it('formats "Unrated" when there is no credit', () => {
   expect(formatCredit(undefined)).toBe('Unrated');
@@ -57,6 +57,30 @@ it('returns an empty object without querying for an empty id list', async () => 
     },
   });
   expect(await getCredits(supabase, [])).toEqual({});
+});
+
+it('maps this rater\'s existing ratings for an event, keyed by ratee', async () => {
+  const supabase = fakeSupabase({
+    from: (table) => {
+      expect(table).toBe('ratings');
+      return {
+        select: () => ({
+          eq: () => ({
+            eq: () =>
+              Promise.resolve({
+                data: [
+                  { ratee_id: 'ratee-1', score: 4 },
+                  { ratee_id: 'ratee-2', score: 2 },
+                ],
+                error: null,
+              }),
+          }),
+        }),
+      };
+    },
+  });
+
+  expect(await getMyRatings(supabase, 'event-1', 'rater-1')).toEqual({ 'ratee-1': 4, 'ratee-2': 2 });
 });
 
 it('submits a rating via upsert on the (event_id, rater_id, ratee_id) conflict target', async () => {

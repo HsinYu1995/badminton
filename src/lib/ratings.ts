@@ -27,6 +27,19 @@ export function formatCredit(credit: Credit | undefined): string {
   return `★ ${credit.credit.toFixed(1)} (${credit.ratingsCount})`;
 }
 
+// This viewer's own previously-given scores for one event, keyed by ratee -
+// lets the UI pre-fill each StarRating with what was already given, so
+// "can be updated later" is something the user can actually see and change,
+// not just something the upsert silently supports.
+export async function getMyRatings(supabase: SupabaseClient, eventId: string, raterId: string): Promise<Record<string, number>> {
+  const { data } = await supabase.from('ratings').select('ratee_id, score').eq('event_id', eventId).eq('rater_id', raterId);
+  const result: Record<string, number> = {};
+  for (const row of (data as { ratee_id: string; score: number }[] | null) ?? []) {
+    result[row.ratee_id] = row.score;
+  }
+  return result;
+}
+
 export type SubmitRatingInput = {
   eventId: string;
   raterId: string;

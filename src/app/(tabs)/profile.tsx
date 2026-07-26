@@ -1,23 +1,28 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { isPastEvent, type EventListItem } from '@/lib/events';
 import { loadProfileSummary, getEventRoster, type Attendee, type AttendingEvent, type ProfileRow } from '@/lib/profile-data';
+import { getCredits, getMyRatings, submitRating, type Credit } from '@/lib/ratings';
 import { bandForLevel, SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
 import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
 import { EventCard } from '@/components/event-card';
 import { ActionButton } from '@/components/action-button';
 import { Pill } from '@/components/pill';
+import { CreditPill } from '@/components/credit-pill';
+import { StarRating } from '@/components/star-rating';
 import { SkillBandSelector } from '@/components/skill-band-selector';
 import { SectionDivider } from '@/components/section-divider';
 
 export default function ProfileScreen() {
   const { session, signOut } = useAuth();
+  const router = useRouter();
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [myEvents, setMyEvents] = useState<EventListItem[]>([]);
   const [attendingEvents, setAttendingEvents] = useState<AttendingEvent[]>([]);
+  const [organizerCredits, setOrganizerCredits] = useState<Record<string, Credit>>({});
   const [participantCounts, setParticipantCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -52,6 +57,9 @@ export default function ProfileScreen() {
     setAttendingEvents(summary.attendingEvents);
     setParticipantCounts(summary.playerCounts);
     setLoadError(summary.profileError ?? summary.organizedEventsError ?? summary.attendingEventsError);
+
+    const organizerIds = [...new Set(summary.attendingEvents.map((event) => event.organizer_id))];
+    setOrganizerCredits(await getCredits(supabase, organizerIds));
 
     setLoading(false);
   }, [session]);
@@ -218,31 +226,41 @@ export default function ProfileScreen() {
           !loadError &&
           attendingEvents.map((event) => (
             <View key={event.id}>
-              <EventCard
-                event={event}
-                participantCount={participantCounts[event.id]}
-                action={
-                  isPastEvent(event) ? undefined : (
-                    <ActionButton
-                      label="Leave event"
-                      onPress={() => handleLeaveEvent(event)}
-                      variant="danger"
-                      loading={leavingEventId === event.id}
-                    />
-                  )
-                }
-              />
-              {event.organizer && (
+              <Pressable onPress={() => router.push({ pathname: '/event/[id]', params: { id: event.id } })}>
+                <EventCard
+                  event={event}
+                  participantCount={participantCounts[event.id]}
+                  action={
+                    isPastEvent(event) ? undefined : (
+                      <ActionButton
+                        label="Leave event"
+                        onPress={() => handleLeaveEvent(event)}
+                        variant="danger"
+                        loading={leavingEventId === event.id}
+                      />
+                    )
+                  }
+                />
+              </Pressable>
+              {event.organizer && session && (
                 <View style={styles.organizerCard}>
                   <Text style={styles.organizerLabel}>🧑 Organized by {event.organizer.display_name}</Text>
                   <View style={styles.pillRowSmall}>
                     {event.organizer.skill_level != null && (
                       <Pill label={bandForLevel(event.organizer.skill_level).label} tone="green" />
                     )}
+                    <CreditPill credit={organizerCredits[event.organizer_id]} />
                     {event.organizer.contact_info && <Pill label={event.organizer.contact_info} tone="feather" />}
                   </View>
+                  <RatingRow
+                    eventId={event.id}
+                    raterId={session.user.id}
+                    rateeId={event.organizer_id}
+                    canRate={isPastEvent(event)}
+                  />
                 </View>
               )}
+              <FellowParticipants eventId={event.id} currentUserId={session?.user.id ?? ''} canRate={isPastEvent(event)} />
             </View>
           ))}
       </View>
@@ -264,23 +282,25 @@ export default function ProfileScreen() {
           !loadError &&
           myEvents.map((event) => (
             <View key={event.id}>
-              <EventCard
-                event={event}
-                participantCount={participantCounts[event.id]}
-                action={
-                  isPastEvent(event) ? (
-                    <ActionButton
-                      label="Remove outdated event"
-                      onPress={() => handleRemoveOutdated(event)}
-                      variant="danger"
-                      loading={removingEventId === event.id}
-                    />
-                  ) : (
-                    <Text style={styles.upcomingLabel}>Upcoming</Text>
-                  )
-                }
-              />
-              <AttendeeRoster eventId={event.id} />
+              <Pressable onPress={() => router.push({ pathname: '/event/[id]', params: { id: event.id } })}>
+                <EventCard
+                  event={event}
+                  participantCount={participantCounts[event.id]}
+                  action={
+                    isPastEvent(event) ? (
+                      <ActionButton
+                        label="Remove outdated event"
+                        onPress={() => handleRemoveOutdated(event)}
+                        variant="danger"
+                        loading={removingEventId === event.id}
+                      />
+                    ) : (
+                      <Text style={styles.upcomingLabel}>Upcoming</Text>
+                    )
+                  }
+                />
+              </Pressable>
+              <AttendeeRoster eventId={event.id} organizerId={session?.user.id ?? ''} canRate={isPastEvent(event)} />
             </View>
           ))}
       </View>
@@ -288,45 +308,229 @@ export default function ProfileScreen() {
   );
 }
 
-// A small self-fetching block rather than threading roster data through
-// ProfileScreen's own state - each organized event's attendee list is
-// independent of the rest of the screen's load/save cycle, and there's no
-// other consumer that would benefit from lifting this fetch up.
-function AttendeeRoster({ eventId }: { eventId: string }) {
+// One person's row: name, skill band, Credit, and (when ratingsEnabled) a
+// StarRating to score them - shared shape between the organizer roster and
+// the fellow-participants list below, since both show "someone I shared an
+// event with."
+function PersonRow({
+  name,
+  skillLevel,
+  contact,
+  credit,
+  statusLabel,
+  statusTone,
+  rating,
+}: {
+  name: string;
+  skillLevel: number | null;
+  contact?: string | null;
+  credit: Credit | undefined;
+  statusLabel?: string;
+  statusTone?: 'green' | 'neutral';
+  rating?: { value: number; onChange: (score: number) => void; disabled?: boolean };
+}) {
+  return (
+    <View style={styles.rosterRow}>
+      <Text style={styles.rosterName}>{name}</Text>
+      <View style={styles.pillRowSmall}>
+        {statusLabel && <Pill label={statusLabel} tone={statusTone ?? 'neutral'} />}
+        {skillLevel != null && <Pill label={bandForLevel(skillLevel).label} tone="feather" />}
+        <CreditPill credit={credit} />
+        {contact && <Pill label={contact} tone="neutral" />}
+      </View>
+      {rating && <StarRating value={rating.value} onChange={rating.onChange} disabled={rating.disabled} />}
+    </View>
+  );
+}
+
+// A single rate-this-person control with its own submit state - used for
+// the organizer card on an attending event (rate the host).
+function RatingRow({
+  eventId,
+  raterId,
+  rateeId,
+  canRate,
+}: {
+  eventId: string;
+  raterId: string;
+  rateeId: string;
+  canRate: boolean;
+}) {
+  const [value, setValue] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!canRate) return;
+    let cancelled = false;
+    getMyRatings(supabase, eventId, raterId).then((ratings) => {
+      if (!cancelled) setValue(ratings[rateeId] ?? 0);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, raterId, rateeId, canRate]);
+
+  if (!canRate) return null;
+
+  async function handleRate(score: number) {
+    setError(null);
+    const previous = value;
+    setValue(score);
+    try {
+      await submitRating(supabase, { eventId, raterId, rateeId, score });
+    } catch (err) {
+      setValue(previous);
+      setError(err instanceof Error ? err.message : 'Could not save rating.');
+    }
+  }
+
+  return (
+    <View style={styles.ratingRow}>
+      <Text style={styles.ratingLabel}>Rate the host</Text>
+      <StarRating value={value} onChange={handleRate} />
+      {error && <Text style={styles.error}>{error}</Text>}
+    </View>
+  );
+}
+
+// The other *accepted* players in a game the signed-in user is attending -
+// didn't exist before this pass (a non-organizer participant had no
+// visibility into who else was in their game). Only accepted rows: a
+// regular participant doesn't need the organizer's pending-request triage
+// view, just the people they actually played with.
+function FellowParticipants({ eventId, currentUserId, canRate }: { eventId: string; currentUserId: string; canRate: boolean }) {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
+  const [credits, setCredits] = useState<Record<string, Credit>>({});
+  const [myRatings, setMyRatings] = useState<Record<string, number>>({});
   const [loadingRoster, setLoadingRoster] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoadingRoster(true);
-    getEventRoster(supabase, eventId).then((rows) => {
+    getEventRoster(supabase, eventId).then(async (rows) => {
+      if (cancelled) return;
+      const fellows = rows.filter((row) => row.status === 'accepted' && row.user_id !== currentUserId);
+      setAttendees(fellows);
+      const ids = fellows.map((row) => row.user_id);
+      const [creditsById, myRatingsById] = await Promise.all([
+        getCredits(supabase, ids),
+        canRate && currentUserId ? getMyRatings(supabase, eventId, currentUserId) : Promise.resolve({}),
+      ]);
       if (!cancelled) {
-        setAttendees(rows);
+        setCredits(creditsById);
+        setMyRatings(myRatingsById);
         setLoadingRoster(false);
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [eventId]);
+  }, [eventId, currentUserId, canRate]);
+
+  if (loadingRoster || attendees.length === 0) return null;
+
+  async function handleRate(rateeId: string, score: number) {
+    setError(null);
+    const previous = myRatings[rateeId] ?? 0;
+    setMyRatings((prev) => ({ ...prev, [rateeId]: score }));
+    try {
+      await submitRating(supabase, { eventId, raterId: currentUserId, rateeId, score });
+    } catch (err) {
+      setMyRatings((prev) => ({ ...prev, [rateeId]: previous }));
+      setError(err instanceof Error ? err.message : 'Could not save rating.');
+    }
+  }
+
+  return (
+    <View style={styles.rosterCard}>
+      <Text style={styles.rosterTitle}>🏸 Also playing ({attendees.length})</Text>
+      {error && <Text style={styles.error}>{error}</Text>}
+      {attendees.map((attendee) => (
+        <PersonRow
+          key={attendee.user_id}
+          name={attendee.profiles?.display_name ?? 'Unknown player'}
+          skillLevel={attendee.profiles?.skill_level ?? null}
+          contact={attendee.profiles?.contact_info}
+          credit={credits[attendee.user_id]}
+          rating={
+            canRate
+              ? { value: myRatings[attendee.user_id] ?? 0, onChange: (score) => handleRate(attendee.user_id, score) }
+              : undefined
+          }
+        />
+      ))}
+    </View>
+  );
+}
+
+// A small self-fetching block rather than threading roster data through
+// ProfileScreen's own state - each organized event's attendee list is
+// independent of the rest of the screen's load/save cycle, and there's no
+// other consumer that would benefit from lifting this fetch up.
+function AttendeeRoster({ eventId, organizerId, canRate }: { eventId: string; organizerId: string; canRate: boolean }) {
+  const [attendees, setAttendees] = useState<Attendee[]>([]);
+  const [credits, setCredits] = useState<Record<string, Credit>>({});
+  const [myRatings, setMyRatings] = useState<Record<string, number>>({});
+  const [loadingRoster, setLoadingRoster] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingRoster(true);
+    getEventRoster(supabase, eventId).then(async (rows) => {
+      if (cancelled) return;
+      setAttendees(rows);
+      const ids = rows.map((row) => row.user_id);
+      const [creditsById, myRatingsById] = await Promise.all([
+        getCredits(supabase, ids),
+        canRate && organizerId ? getMyRatings(supabase, eventId, organizerId) : Promise.resolve({}),
+      ]);
+      if (!cancelled) {
+        setCredits(creditsById);
+        setMyRatings(myRatingsById);
+        setLoadingRoster(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, organizerId, canRate]);
 
   if (loadingRoster) return null;
   if (attendees.length === 0) return null;
 
+  async function handleRate(rateeId: string, score: number) {
+    setError(null);
+    const previous = myRatings[rateeId] ?? 0;
+    setMyRatings((prev) => ({ ...prev, [rateeId]: score }));
+    try {
+      await submitRating(supabase, { eventId, raterId: organizerId, rateeId, score });
+    } catch (err) {
+      setMyRatings((prev) => ({ ...prev, [rateeId]: previous }));
+      setError(err instanceof Error ? err.message : 'Could not save rating.');
+    }
+  }
+
   return (
     <View style={styles.rosterCard}>
       <Text style={styles.rosterTitle}>👥 Players ({attendees.length})</Text>
+      {error && <Text style={styles.error}>{error}</Text>}
       {attendees.map((attendee) => (
-        <View key={attendee.user_id} style={styles.rosterRow}>
-          <Text style={styles.rosterName}>{attendee.profiles?.display_name ?? 'Unknown player'}</Text>
-          <View style={styles.pillRowSmall}>
-            <Pill label={attendee.status === 'accepted' ? 'Accepted' : 'Pending'} tone={attendee.status === 'accepted' ? 'green' : 'neutral'} />
-            {attendee.profiles?.skill_level != null && (
-              <Pill label={bandForLevel(attendee.profiles.skill_level).label} tone="feather" />
-            )}
-            {attendee.profiles?.contact_info && <Pill label={attendee.profiles.contact_info} tone="neutral" />}
-          </View>
-        </View>
+        <PersonRow
+          key={attendee.user_id}
+          name={attendee.profiles?.display_name ?? 'Unknown player'}
+          skillLevel={attendee.profiles?.skill_level ?? null}
+          contact={attendee.profiles?.contact_info}
+          credit={credits[attendee.user_id]}
+          statusLabel={attendee.status === 'accepted' ? 'Accepted' : 'Pending'}
+          statusTone={attendee.status === 'accepted' ? 'green' : 'neutral'}
+          rating={
+            canRate && attendee.status === 'accepted'
+              ? { value: myRatings[attendee.user_id] ?? 0, onChange: (score) => handleRate(attendee.user_id, score) }
+              : undefined
+          }
+        />
       ))}
     </View>
   );
@@ -384,6 +588,8 @@ const styles = StyleSheet.create({
   },
   organizerLabel: { fontFamily: Font.display, fontSize: 13, color: Court.ink },
   pillRowSmall: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.xs },
+  ratingRow: { gap: 4, marginTop: Space.xs },
+  ratingLabel: { fontSize: 12, color: Court.inkSecondary },
   rosterCard: {
     backgroundColor: Court.shuttle,
     borderRadius: Radius.md,
