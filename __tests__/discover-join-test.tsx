@@ -5,11 +5,13 @@ const mockEvent = {
   organizer_id: 'someone-else',
   title: 'Sunday Doubles Mixer',
   start_time: '2026-08-01T10:00:00.000Z',
+  end_time: '2026-08-01T12:00:00.000Z',
   headcount_max: 8,
   skill_min: 1,
   skill_max: 18,
   fee: 0,
-  venues: { name: 'Riverside Court' },
+  venue_name: 'Riverside Court',
+  distance_meters: null,
 };
 
 // Stable reference: see the comment in discover-test.tsx - a fresh `session`
@@ -32,12 +34,18 @@ jest.mock('@/lib/auth-context', () => ({
   }),
 }));
 
+jest.mock('expo-location', () => ({
+  requestForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ granted: false })),
+  getCurrentPositionAsync: jest.fn(),
+}));
+
 jest.mock('@/lib/supabase', () => ({
   supabase: {
+    rpc: (fn: string) => {
+      if (fn === 'discover_events') return Promise.resolve({ data: [mockEvent], error: null });
+      throw new Error(`Unexpected rpc in mock: ${fn}`);
+    },
     from: (table: string) => {
-      if (table === 'events') {
-        return { select: () => ({ order: () => Promise.resolve({ data: [mockEvent], error: null }) }) };
-      }
       if (table === 'event_participants') {
         return {
           select: () => ({

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Court, Font, Radius, Shadow, Space, SkillBandAccents } from '@/constants/badminton-theme';
 import { bandForLevel } from '@/lib/skill-bands';
-import { formatFee, formatStartTime, isPastEvent, type EventListItem } from '@/lib/events';
+import { formatDistance, formatFee, formatStartTime, isPastEvent, type EventListItem } from '@/lib/events';
 import { Pill } from '@/components/pill';
 
 const SKILL_SCALE_MIN = 1;
@@ -37,9 +37,13 @@ type EventCardProps = {
   // Omitted (rather than defaulted to 0) when the caller hasn't fetched it,
   // so the card falls back to "Up to N players" instead of claiming 0/N.
   participantCount?: number;
+  // Meters from the viewer's current location, from Discover's
+  // discover_events RPC. Omitted (not shown) when the caller has no
+  // location - never fabricated.
+  distanceMeters?: number | null;
 };
 
-export function EventCard({ event, action, participantCount }: EventCardProps) {
+export function EventCard({ event, action, participantCount, distanceMeters }: EventCardProps) {
   const band = bandForLevel(event.skill_min);
   const accent = SkillBandAccents[band.id] ?? Court.green;
   const past = isPastEvent(event);
@@ -67,6 +71,7 @@ export function EventCard({ event, action, participantCount }: EventCardProps) {
             label={participantCount != null ? `${participantCount}/${event.headcount_max} players` : `Up to ${event.headcount_max} players`}
             tone="neutral"
           />
+          {distanceMeters != null && <Pill label={formatDistance(distanceMeters)} tone="neutral" />}
         </View>
 
         {action && <View style={styles.actionRow}>{action}</View>}

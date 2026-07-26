@@ -26,6 +26,16 @@ export function formatFee(fee: number): string {
   return fee === 0 ? 'Free' : `NT$${fee}`;
 }
 
+// Sub-kilometer distances read as meters (whole numbers - "450 m away"),
+// anything further as kilometers to one decimal place ("2.3 km away"),
+// matching how Google Maps/most map apps switch units.
+export function formatDistance(meters: number): string {
+  if (meters < 1000) {
+    return `${Math.round(meters)} m away`;
+  }
+  return `${(meters / 1000).toFixed(1)} km away`;
+}
+
 export function isPastEvent(event: Pick<EventListItem, 'end_time'>, now: number = Date.now()): boolean {
   return new Date(event.end_time).getTime() < now;
 }

@@ -3,23 +3,29 @@ import { renderRouter, screen } from 'expo-router/testing-library';
 const mockEvents = [
   {
     id: 'event-1',
+    organizer_id: 'someone-else',
     title: 'Fake Friendly Doubles',
     start_time: '2026-08-01T10:00:00.000Z',
+    end_time: '2026-08-01T12:00:00.000Z',
     headcount_max: 8,
     skill_min: 1,
     skill_max: 18,
     fee: 0,
-    venues: { name: 'Fake Court' },
+    venue_name: 'Fake Court',
+    distance_meters: null,
   },
   {
     id: 'event-2',
+    organizer_id: 'someone-else',
     title: 'Fake Advanced Singles',
     start_time: '2026-08-02T14:00:00.000Z',
+    end_time: '2026-08-02T16:00:00.000Z',
     headcount_max: 4,
     skill_min: 13,
     skill_max: 18,
     fee: 150,
-    venues: { name: 'Fake Gym' },
+    venue_name: 'Fake Gym',
+    distance_meters: null,
   },
 ];
 
@@ -40,12 +46,18 @@ jest.mock('@/lib/auth-context', () => ({
   }),
 }));
 
+jest.mock('expo-location', () => ({
+  requestForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ granted: false })),
+  getCurrentPositionAsync: jest.fn(),
+}));
+
 jest.mock('@/lib/supabase', () => ({
   supabase: {
+    rpc: (fn: string) => {
+      if (fn === 'discover_events') return Promise.resolve({ data: mockEvents, error: null });
+      throw new Error(`Unexpected rpc in mock: ${fn}`);
+    },
     from: (table: string) => {
-      if (table === 'events') {
-        return { select: () => ({ order: () => Promise.resolve({ data: mockEvents, error: null }) }) };
-      }
       if (table === 'event_participants') {
         return {
           select: () => ({
