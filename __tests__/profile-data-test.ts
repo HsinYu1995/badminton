@@ -30,7 +30,7 @@ function defaultFrom(table: string): unknown {
             ? { eq: () => Promise.resolve({ data: [{ event_id: attendingEvent.id }], error: null }) }
             : Promise.resolve({ data: [], error: null }),
         in: () => ({
-          in: () => Promise.resolve({ data: [{ event_id: organizedEvent.id, status: 'pending' }], error: null }),
+          in: () => Promise.resolve({ data: [{ event_id: organizedEvent.id, status: 'accepted' }], error: null }),
         }),
       }),
     };
@@ -49,7 +49,7 @@ it('assembles profile, organized events, attending events with organizer info, a
   expect(summary.profileError).toBeNull();
   expect(summary.organizedEvents).toEqual([organizedEvent]);
   expect(summary.attendingEvents).toEqual([{ ...attendingEvent, organizer: organizerProfile }]);
-  // organized event: organizer (1) + 1 pending = 2. attending event: organizer (1) + 0 active = 1.
+  // organized event: organizer (1) + 1 accepted = 2. attending event: organizer (1) + 0 accepted = 1.
   expect(summary.playerCounts).toEqual({ 'event-organized': 2, 'event-attending': 1 });
 });
 

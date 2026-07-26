@@ -92,10 +92,7 @@ jest.mock('@/lib/supabase', () => ({
             in: () => ({
               in: () =>
                 Promise.resolve({
-                  data: [
-                    { event_id: organizedEvent.id, status: 'pending' },
-                    { event_id: attendingEvent.id, status: 'accepted' },
-                  ],
+                  data: [{ event_id: attendingEvent.id, status: 'accepted' }],
                   error: null,
                 }),
             }),
@@ -136,8 +133,11 @@ it(
     expect(screen.getAllByText('Novice')).toHaveLength(2);
     expect(screen.getByText('090-1234')).toBeTruthy();
 
-    // Headcounts include the organizer (1 + 1 active participant each)
-    expect(screen.getAllByText('2/8 players')).toHaveLength(2);
+    // organizedEvent's only participant is still pending (not counted yet):
+    // organizer (1) + 0 accepted = 1. attendingEvent's participant is
+    // accepted: organizer (1) + 1 accepted = 2.
+    expect(screen.getByText('1/8 players')).toBeTruthy();
+    expect(screen.getByText('2/8 players')).toBeTruthy();
 
     await fireEvent.press(screen.getByText('Leave event'));
 

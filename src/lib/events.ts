@@ -1,8 +1,8 @@
-// A game's "current number of people" counts pending + accepted requests,
-// not accepted-only - there's no organizer accept/decline UI yet, so an
-// accepted-only count would read as permanently empty even for events with
-// real signups. Declined (withdrawn) requests are excluded either way.
-export const ACTIVE_PARTICIPANT_STATUSES = ['pending', 'accepted'] as const;
+// A game's "current number of people" counts accepted requests only - a
+// pending request doesn't occupy a spot until the organizer accepts it (see
+// AttendeeRoster's Accept/Decline actions in src/app/(tabs)/profile.tsx).
+// Declined requests are excluded the same as before.
+export const ACTIVE_PARTICIPANT_STATUSES = ['accepted'] as const;
 
 export type EventListItem = {
   id: string;
