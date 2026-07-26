@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@expo-google-fonts/league-spartan": "^0.4.2",
+    "@expo/ngrok": "^4.1.3",
     "@expo/ui": "~57.0.6",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@supabase/supabase-js": "^2.110.7",
@@ -58,6 +59,8 @@
     "test:auth-session": "node --env-file=.env.local tests/auth-session.test.mjs",
     "test:profile-edit": "node --env-file=.env.local tests/profile-edit.test.mjs",
     "test:participant-lifecycle": "node --env-file=.env.local tests/participant-lifecycle.test.mjs",
+    "test:ratings": "node --env-file=.env.local tests/ratings.test.mjs",
+    "test:discover-pagination": "node --env-file=.env.local tests/discover-pagination.test.mjs",
     "test": "jest"
   },
   "private": true,

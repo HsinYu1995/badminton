@@ -16,6 +16,10 @@ _Avoid_: Skill tier (ambiguous with Skill level - use Skill level for the number
 The number of people currently in an Event: the organizer (always exactly one - organizers have no `event_participants` row of their own) plus every participant with a pending or accepted request. Computed for display, never stored. Distinct from an Event's `headcount_max`, which is its capacity limit, not who's actually in it.
 _Avoid_: Headcount, current headcount (ambiguous with `headcount_max` - use Player count for "who's in it now", headcount_max for "the cap")
 
+**Credit**:
+The average of a Profile's received `ratings.score` (1-5), computed on read via the `public.profile_credit` view - never stored, same pattern as Skill band. A Profile with zero ratings has no row in this view (absent, not zero) - render as "Unrated," never a fabricated "0.0 stars." Given only by another Profile who shared an Event with them (organizer <-> accepted participant, or accepted participant <-> accepted participant), and only optionally - not giving a score is simply never inserting a row, not a stored null/zero.
+_Avoid_: Rating (ambiguous between the act and the aggregate - use Rating for one `ratings` row, Credit for the computed average), score (fine informally, but Credit is the stored/domain term)
+
 ## Relationships
 
 - A **Profile** has at most one **Skill level** - it is nullable until the player self-reports it (a **Profile** created by signup, before onboarding, has no **Skill level** yet).
