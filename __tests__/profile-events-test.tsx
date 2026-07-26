@@ -49,6 +49,10 @@ const rosterRows = [
 ];
 
 const mockLeaveEq = jest.fn(() => Promise.resolve({ error: null }));
+const mockAcceptEq2 = jest.fn(() => Promise.resolve({ error: null }));
+const mockParticipantUpdate = jest.fn(() => ({
+  eq: () => ({ eq: mockAcceptEq2 }),
+}));
 
 jest.mock('@/lib/auth-context', () => ({
   AuthProvider: ({ children }: { children: unknown }) => children,
@@ -97,6 +101,7 @@ jest.mock('@/lib/supabase', () => ({
                 }),
             }),
           }),
+          update: mockParticipantUpdate,
           delete: () => ({ eq: () => ({ eq: mockLeaveEq }) }),
         };
       }
@@ -144,6 +149,35 @@ it(
     await waitFor(() => expect(mockLeaveEq).toHaveBeenCalledTimes(1));
     expect(screen.queryByText(attendingEvent.title)).toBeNull();
     expect(screen.queryByText('🧑 Organized by Coach Wu')).toBeNull();
+  },
+  15000
+);
+
+it(
+  'lets the organizer accept a pending request, updating the roster and the player count',
+  async () => {
+    await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)/profile' });
+
+    await screen.findByText(organizedEvent.title);
+    expect(await screen.findByText('👥 Players (1)')).toBeTruthy();
+    expect(screen.getByText('Pending')).toBeTruthy();
+    expect(screen.getByText('1/8 players')).toBeTruthy();
+
+    await fireEvent.press(screen.getByText('Accept'));
+
+    await waitFor(() => expect(mockParticipantUpdate).toHaveBeenCalledTimes(1));
+    expect(mockParticipantUpdate).toHaveBeenCalledWith({ status: 'accepted' });
+    await waitFor(() => expect(mockAcceptEq2).toHaveBeenCalledTimes(1));
+
+    expect(await screen.findByText('Accepted')).toBeTruthy();
+    expect(screen.queryByText('Pending')).toBeNull();
+    expect(screen.queryByText('Accept')).toBeNull();
+    expect(screen.queryByText('Decline')).toBeNull();
+    // organizedEvent's count bumped from 1/8 to 2/8 - which now coincides
+    // with attendingEvent's already-accepted participant (also 2/8), so two
+    // elements match instead of one.
+    expect(screen.queryByText('1/8 players')).toBeNull();
+    expect(screen.getAllByText('2/8 players')).toHaveLength(2);
   },
   15000
 );

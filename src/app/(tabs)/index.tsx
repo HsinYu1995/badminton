@@ -243,7 +243,7 @@ export default function DiscoverScreen() {
                       loading={cancelingEventId === event.id}
                     />
                   ) : requestStatus === 'declined' ? (
-                    <ActionButton label="Withdrawn" onPress={() => {}} variant="muted" disabled />
+                    <ActionButton label="Declined" onPress={() => {}} variant="muted" disabled />
                   ) : (
                     <ActionButton
                       label="Join"
