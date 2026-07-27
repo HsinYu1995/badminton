@@ -65,7 +65,8 @@ jest.mock('@/lib/supabase', () => ({
       if (table === 'event_participants') {
         return {
           select: () => ({
-            in: () => ({ in: () => Promise.resolve({ data: [], error: null }) }),
+            // getEventRosters' batched roster query: .in('event_id', ids).
+            in: () => Promise.resolve({ data: [], error: null }),
             eq: (column: string) =>
               column === 'user_id'
                 ? { eq: () => Promise.resolve({ data: [], error: null }) }
@@ -74,7 +75,7 @@ jest.mock('@/lib/supabase', () => ({
         };
       }
       if (table === 'ratings') {
-        return { select: () => ({ eq: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) }) };
+        return { select: () => ({ eq: () => ({ in: () => Promise.resolve({ data: [], error: null }) }) }) };
       }
       if (table === 'profile_credit') {
         return { select: () => ({ in: () => Promise.resolve({ data: [], error: null }) }) };

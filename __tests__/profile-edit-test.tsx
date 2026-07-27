@@ -1,12 +1,13 @@
 import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 
-const initialProfile = { display_name: 'Fake Player', skill_level: 8, bio: null, contact_info: null };
+const initialProfileRow = { display_name: 'Fake Player', skill_level: 8, profile_contact: null };
 
 // Stable reference: see the comment in discover-test.tsx - a fresh `session`
 // object literal per call breaks any screen that depends on it in a
 // useCallback/useEffect dependency array.
 const FAKE_SESSION = { user: { id: 'fake-user-id' } };
 const mockProfileUpdateEq = jest.fn((_payload: unknown) => Promise.resolve({ error: null }));
+const mockContactUpsert = jest.fn((_payload: unknown) => Promise.resolve({ error: null }));
 
 jest.mock('@/lib/auth-context', () => ({
   AuthProvider: ({ children }: { children: unknown }) => children,
@@ -25,11 +26,14 @@ jest.mock('@/lib/supabase', () => ({
         return {
           select: () => ({
             eq: () => ({
-              single: () => Promise.resolve({ data: initialProfile, error: null }),
+              single: () => Promise.resolve({ data: initialProfileRow, error: null }),
             }),
           }),
           update: (payload: unknown) => ({ eq: () => mockProfileUpdateEq(payload) }),
         };
+      }
+      if (table === 'profile_contact') {
+        return { upsert: (payload: unknown) => mockContactUpsert(payload) };
       }
       if (table === 'events') {
         return { select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }) };
@@ -45,6 +49,9 @@ jest.mock('@/lib/supabase', () => ({
           }),
         };
       }
+      if (table === 'profile_credit') {
+        return { select: () => ({ in: () => Promise.resolve({ data: [], error: null }) }) };
+      }
       throw new Error(`Unexpected table in mock: ${table}`);
     },
   },
@@ -52,6 +59,7 @@ jest.mock('@/lib/supabase', () => ({
 
 beforeEach(() => {
   mockProfileUpdateEq.mockClear();
+  mockContactUpsert.mockClear();
 });
 
 it(
@@ -76,9 +84,12 @@ it(
     await waitFor(() => expect(mockProfileUpdateEq).toHaveBeenCalledTimes(1));
     expect(mockProfileUpdateEq).toHaveBeenCalledWith({
       display_name: 'Ace Server',
+      skill_level: 13,
+    });
+    expect(mockContactUpsert).toHaveBeenCalledWith({
+      id: 'fake-user-id',
       bio: 'Weekend warrior, mostly doubles.',
       contact_info: 'LINE: fakeplayer',
-      skill_level: 13,
     });
     expect(await screen.findByText('Profile saved.')).toBeTruthy();
     expect(screen.getByText('Ace Server')).toBeTruthy();

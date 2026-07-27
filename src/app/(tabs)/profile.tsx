@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { isPastEvent, type EventListItem } from '@/lib/events';
-import { loadProfileSummary, getEventRoster, type Attendee, type AttendingEvent, type ProfileRow } from '@/lib/profile-data';
-import { getCredits, getMyRatings, submitRating, type Credit } from '@/lib/ratings';
+import { loadProfileSummary, type Attendee, type AttendingEvent, type ProfileRow } from '@/lib/profile-data';
+import { submitRating, type Credit } from '@/lib/ratings';
 import { bandForLevel, SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
 import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
 import { EventCard } from '@/components/event-card';
@@ -22,7 +22,9 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [myEvents, setMyEvents] = useState<EventListItem[]>([]);
   const [attendingEvents, setAttendingEvents] = useState<AttendingEvent[]>([]);
-  const [organizerCredits, setOrganizerCredits] = useState<Record<string, Credit>>({});
+  const [rostersByEventId, setRostersByEventId] = useState<Record<string, Attendee[]>>({});
+  const [creditsByUserId, setCreditsByUserId] = useState<Record<string, Credit>>({});
+  const [myRatingsByEventId, setMyRatingsByEventId] = useState<Record<string, Record<string, number>>>({});
   const [participantCounts, setParticipantCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -40,9 +42,14 @@ export default function ProfileScreen() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Only the very first load (per mount) shows the full-screen spinner -
+  // refocusing this tab afterward (e.g. switching back from Discover)
+  // refetches quietly, so the screen doesn't blank out on every visit.
+  const hasLoadedOnceRef = useRef(false);
   const loadProfile = useCallback(async () => {
     if (!session) return;
-    setLoading(true);
+    const isFirstLoad = !hasLoadedOnceRef.current;
+    if (isFirstLoad) setLoading(true);
 
     const summary = await loadProfileSummary(supabase, session.user.id);
 
@@ -57,12 +64,28 @@ export default function ProfileScreen() {
     setAttendingEvents(summary.attendingEvents);
     setParticipantCounts(summary.playerCounts);
     setLoadError(summary.profileError ?? summary.organizedEventsError ?? summary.attendingEventsError);
+    setRostersByEventId(summary.rostersByEventId);
+    setCreditsByUserId(summary.creditsByUserId);
+    setMyRatingsByEventId(summary.myRatingsByEventId);
 
-    const organizerIds = [...new Set(summary.attendingEvents.map((event) => event.organizer_id))];
-    setOrganizerCredits(await getCredits(supabase, organizerIds));
-
-    setLoading(false);
+    hasLoadedOnceRef.current = true;
+    if (isFirstLoad) setLoading(false);
   }, [session]);
+
+  // Single source of truth for "my rating of this person for this event" -
+  // shared by the host-rating control and every roster row, replacing what
+  // used to be separate optimistic-update-and-revert logic duplicated in
+  // three different self-fetching components.
+  async function handleRate(eventId: string, raterId: string, rateeId: string, score: number) {
+    const previous = myRatingsByEventId[eventId]?.[rateeId] ?? 0;
+    setMyRatingsByEventId((prev) => ({ ...prev, [eventId]: { ...prev[eventId], [rateeId]: score } }));
+    try {
+      await submitRating(supabase, { eventId, raterId, rateeId, score });
+    } catch (err) {
+      setMyRatingsByEventId((prev) => ({ ...prev, [eventId]: { ...prev[eventId], [rateeId]: previous } }));
+      throw err;
+    }
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -97,12 +120,19 @@ export default function ProfileScreen() {
         .from('profiles')
         .update({
           display_name: trimmedName,
-          bio: bioText.trim() || null,
-          contact_info: contactInfoText.trim() || null,
           skill_level: band ? band.min : null,
         })
         .eq('id', session.user.id);
       if (error) throw error;
+      // Separate table (see 20260726120000_profile_contact_visibility.sql) -
+      // upsert rather than update, since a freshly-created profile has no
+      // profile_contact row yet.
+      const { error: contactError } = await supabase.from('profile_contact').upsert({
+        id: session.user.id,
+        bio: bioText.trim() || null,
+        contact_info: contactInfoText.trim() || null,
+      });
+      if (contactError) throw contactError;
       setProfile((prev) => (prev ? { ...prev, display_name: trimmedName } : prev));
       setSaveSuccess(true);
     } catch (err) {
@@ -145,6 +175,25 @@ export default function ProfileScreen() {
     }
   }
 
+  // The organizer accepting or declining one pending request - relies on
+  // participants_update_by_organizer (organizer can update any participant
+  // row on their own event; see 20260716201044_rls_policies.sql). Updates
+  // the row's status in place (pill flips, decision buttons disappear) and,
+  // only on acceptance, bumps that event's displayed player count by 1 - the
+  // one moment a request starts occupying a spot (see
+  // ACTIVE_PARTICIPANT_STATUSES in src/lib/events.ts).
+  async function handleDecide(eventId: string, userId: string, status: 'accepted' | 'declined') {
+    const { error } = await supabase.from('event_participants').update({ status }).eq('event_id', eventId).eq('user_id', userId);
+    if (error) throw error;
+    setRostersByEventId((prev) => ({
+      ...prev,
+      [eventId]: (prev[eventId] ?? []).map((row) => (row.user_id === userId ? { ...row, status } : row)),
+    }));
+    if (status === 'accepted') {
+      setParticipantCounts((prev) => ({ ...prev, [eventId]: (prev[eventId] ?? 1) + 1 }));
+    }
+  }
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.topRow}>
@@ -168,6 +217,11 @@ export default function ProfileScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>My profile</Text>
+
+        <View style={styles.creditRow}>
+          <Text style={styles.label}>🌟 Credit</Text>
+          <CreditPill credit={session ? creditsByUserId[session.user.id] : undefined} />
+        </View>
 
         <Text style={styles.label}>😀 Display name</Text>
         <TextInput
@@ -249,18 +303,26 @@ export default function ProfileScreen() {
                     {event.organizer.skill_level != null && (
                       <Pill label={bandForLevel(event.organizer.skill_level).label} tone="green" />
                     )}
-                    <CreditPill credit={organizerCredits[event.organizer_id]} />
+                    <CreditPill credit={creditsByUserId[event.organizer_id]} />
                     {event.organizer.contact_info && <Pill label={event.organizer.contact_info} tone="feather" />}
                   </View>
                   <RatingRow
-                    eventId={event.id}
-                    raterId={session.user.id}
-                    rateeId={event.organizer_id}
+                    value={myRatingsByEventId[event.id]?.[event.organizer_id] ?? 0}
                     canRate={isPastEvent(event)}
+                    onRate={(score) => handleRate(event.id, session.user.id, event.organizer_id, score)}
                   />
                 </View>
               )}
-              <FellowParticipants eventId={event.id} currentUserId={session?.user.id ?? ''} canRate={isPastEvent(event)} />
+              {session && (
+                <FellowParticipants
+                  attendees={rostersByEventId[event.id] ?? []}
+                  currentUserId={session.user.id}
+                  canRate={isPastEvent(event)}
+                  credits={creditsByUserId}
+                  myRatings={myRatingsByEventId[event.id] ?? {}}
+                  onRate={(rateeId, score) => handleRate(event.id, session.user.id, rateeId, score)}
+                />
+              )}
             </View>
           ))}
       </View>
@@ -300,7 +362,16 @@ export default function ProfileScreen() {
                   }
                 />
               </Pressable>
-              <AttendeeRoster eventId={event.id} organizerId={session?.user.id ?? ''} canRate={isPastEvent(event)} />
+              {session && (
+                <AttendeeRoster
+                  attendees={rostersByEventId[event.id] ?? []}
+                  canRate={isPastEvent(event)}
+                  credits={creditsByUserId}
+                  myRatings={myRatingsByEventId[event.id] ?? {}}
+                  onRate={(rateeId, score) => handleRate(event.id, session.user.id, rateeId, score)}
+                  onDecide={(userId, status) => handleDecide(event.id, userId, status)}
+                />
+              )}
             </View>
           ))}
       </View>
@@ -319,6 +390,7 @@ function PersonRow({
   credit,
   statusLabel,
   statusTone,
+  decision,
   rating,
 }: {
   name: string;
@@ -326,7 +398,8 @@ function PersonRow({
   contact?: string | null;
   credit: Credit | undefined;
   statusLabel?: string;
-  statusTone?: 'green' | 'neutral';
+  statusTone?: 'green' | 'neutral' | 'danger';
+  decision?: { onAccept: () => void; onDecline: () => void; loading?: boolean };
   rating?: { value: number; onChange: (score: number) => void; disabled?: boolean };
 }) {
   return (
@@ -338,48 +411,33 @@ function PersonRow({
         <CreditPill credit={credit} />
         {contact && <Pill label={contact} tone="neutral" />}
       </View>
+      {decision && (
+        <View style={styles.decisionRow}>
+          <ActionButton label="Accept" onPress={decision.onAccept} loading={decision.loading} />
+          <ActionButton label="Decline" onPress={decision.onDecline} variant="danger" loading={decision.loading} />
+        </View>
+      )}
       {rating && <StarRating value={rating.value} onChange={rating.onChange} disabled={rating.disabled} />}
     </View>
   );
 }
 
-// A single rate-this-person control with its own submit state - used for
-// the organizer card on an attending event (rate the host).
-function RatingRow({
-  eventId,
-  raterId,
-  rateeId,
-  canRate,
-}: {
-  eventId: string;
-  raterId: string;
-  rateeId: string;
-  canRate: boolean;
-}) {
-  const [value, setValue] = useState(0);
+// A single rate-this-person control with its own submit-error display -
+// used for the organizer card on an attending event (rate the host). `value`
+// and the actual submit come from ProfileScreen's consolidated state/
+// handleRate (see loadProfileSummary's myRatingsByEventId) rather than this
+// component fetching its own copy, which is what RatingRow, FellowParticipants,
+// and AttendeeRoster each used to do independently.
+function RatingRow({ value, canRate, onRate }: { value: number; canRate: boolean; onRate: (score: number) => Promise<void> }) {
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!canRate) return;
-    let cancelled = false;
-    getMyRatings(supabase, eventId, raterId).then((ratings) => {
-      if (!cancelled) setValue(ratings[rateeId] ?? 0);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId, raterId, rateeId, canRate]);
 
   if (!canRate) return null;
 
-  async function handleRate(score: number) {
+  async function handlePress(score: number) {
     setError(null);
-    const previous = value;
-    setValue(score);
     try {
-      await submitRating(supabase, { eventId, raterId, rateeId, score });
+      await onRate(score);
     } catch (err) {
-      setValue(previous);
       setError(err instanceof Error ? err.message : 'Could not save rating.');
     }
   }
@@ -387,66 +445,52 @@ function RatingRow({
   return (
     <View style={styles.ratingRow}>
       <Text style={styles.ratingLabel}>Rate the host</Text>
-      <StarRating value={value} onChange={handleRate} />
+      <StarRating value={value} onChange={handlePress} />
       {error && <Text style={styles.error}>{error}</Text>}
     </View>
   );
 }
 
 // The other *accepted* players in a game the signed-in user is attending -
-// didn't exist before this pass (a non-organizer participant had no
-// visibility into who else was in their game). Only accepted rows: a
-// regular participant doesn't need the organizer's pending-request triage
-// view, just the people they actually played with.
-function FellowParticipants({ eventId, currentUserId, canRate }: { eventId: string; currentUserId: string; canRate: boolean }) {
-  const [attendees, setAttendees] = useState<Attendee[]>([]);
-  const [credits, setCredits] = useState<Record<string, Credit>>({});
-  const [myRatings, setMyRatings] = useState<Record<string, number>>({});
-  const [loadingRoster, setLoadingRoster] = useState(true);
+// only accepted rows: a regular participant doesn't need the organizer's
+// pending-request triage view, just the people they actually played with.
+// `attendees` is this event's full roster (see loadProfileSummary's
+// rostersByEventId) - filtered down to "accepted, not me" here rather than
+// by the caller, since that's specific to this card's own framing.
+function FellowParticipants({
+  attendees,
+  currentUserId,
+  canRate,
+  credits,
+  myRatings,
+  onRate,
+}: {
+  attendees: Attendee[];
+  currentUserId: string;
+  canRate: boolean;
+  credits: Record<string, Credit>;
+  myRatings: Record<string, number>;
+  onRate: (rateeId: string, score: number) => Promise<void>;
+}) {
   const [error, setError] = useState<string | null>(null);
+  const fellows = attendees.filter((row) => row.status === 'accepted' && row.user_id !== currentUserId);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoadingRoster(true);
-    getEventRoster(supabase, eventId).then(async (rows) => {
-      if (cancelled) return;
-      const fellows = rows.filter((row) => row.status === 'accepted' && row.user_id !== currentUserId);
-      setAttendees(fellows);
-      const ids = fellows.map((row) => row.user_id);
-      const [creditsById, myRatingsById] = await Promise.all([
-        getCredits(supabase, ids),
-        canRate && currentUserId ? getMyRatings(supabase, eventId, currentUserId) : Promise.resolve({}),
-      ]);
-      if (!cancelled) {
-        setCredits(creditsById);
-        setMyRatings(myRatingsById);
-        setLoadingRoster(false);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId, currentUserId, canRate]);
-
-  if (loadingRoster || attendees.length === 0) return null;
+  if (fellows.length === 0) return null;
 
   async function handleRate(rateeId: string, score: number) {
     setError(null);
-    const previous = myRatings[rateeId] ?? 0;
-    setMyRatings((prev) => ({ ...prev, [rateeId]: score }));
     try {
-      await submitRating(supabase, { eventId, raterId: currentUserId, rateeId, score });
+      await onRate(rateeId, score);
     } catch (err) {
-      setMyRatings((prev) => ({ ...prev, [rateeId]: previous }));
       setError(err instanceof Error ? err.message : 'Could not save rating.');
     }
   }
 
   return (
     <View style={styles.rosterCard}>
-      <Text style={styles.rosterTitle}>🏸 Also playing ({attendees.length})</Text>
+      <Text style={styles.rosterTitle}>🏸 Also playing ({fellows.length})</Text>
       {error && <Text style={styles.error}>{error}</Text>}
-      {attendees.map((attendee) => (
+      {fellows.map((attendee) => (
         <PersonRow
           key={attendee.user_id}
           name={attendee.profiles?.display_name ?? 'Unknown player'}
@@ -464,51 +508,48 @@ function FellowParticipants({ eventId, currentUserId, canRate }: { eventId: stri
   );
 }
 
-// A small self-fetching block rather than threading roster data through
-// ProfileScreen's own state - each organized event's attendee list is
-// independent of the rest of the screen's load/save cycle, and there's no
-// other consumer that would benefit from lifting this fetch up.
-function AttendeeRoster({ eventId, organizerId, canRate }: { eventId: string; organizerId: string; canRate: boolean }) {
-  const [attendees, setAttendees] = useState<Attendee[]>([]);
-  const [credits, setCredits] = useState<Record<string, Credit>>({});
-  const [myRatings, setMyRatings] = useState<Record<string, number>>({});
-  const [loadingRoster, setLoadingRoster] = useState(true);
+// The full roster (any status) of one organized event - see
+// loadProfileSummary's rostersByEventId, batched across every organized/
+// attending event in one query rather than fetched per card.
+function AttendeeRoster({
+  attendees,
+  canRate,
+  credits,
+  myRatings,
+  onRate,
+  onDecide,
+}: {
+  attendees: Attendee[];
+  canRate: boolean;
+  credits: Record<string, Credit>;
+  myRatings: Record<string, number>;
+  onRate: (rateeId: string, score: number) => Promise<void>;
+  onDecide: (userId: string, status: 'accepted' | 'declined') => Promise<void>;
+}) {
   const [error, setError] = useState<string | null>(null);
+  const [decidingUserId, setDecidingUserId] = useState<string | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoadingRoster(true);
-    getEventRoster(supabase, eventId).then(async (rows) => {
-      if (cancelled) return;
-      setAttendees(rows);
-      const ids = rows.map((row) => row.user_id);
-      const [creditsById, myRatingsById] = await Promise.all([
-        getCredits(supabase, ids),
-        canRate && organizerId ? getMyRatings(supabase, eventId, organizerId) : Promise.resolve({}),
-      ]);
-      if (!cancelled) {
-        setCredits(creditsById);
-        setMyRatings(myRatingsById);
-        setLoadingRoster(false);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId, organizerId, canRate]);
-
-  if (loadingRoster) return null;
   if (attendees.length === 0) return null;
 
   async function handleRate(rateeId: string, score: number) {
     setError(null);
-    const previous = myRatings[rateeId] ?? 0;
-    setMyRatings((prev) => ({ ...prev, [rateeId]: score }));
     try {
-      await submitRating(supabase, { eventId, raterId: organizerId, rateeId, score });
+      await onRate(rateeId, score);
     } catch (err) {
-      setMyRatings((prev) => ({ ...prev, [rateeId]: previous }));
       setError(err instanceof Error ? err.message : 'Could not save rating.');
+    }
+  }
+
+  async function handleDecide(userId: string, status: 'accepted' | 'declined') {
+    setDecisionError(null);
+    setDecidingUserId(userId);
+    try {
+      await onDecide(userId, status);
+    } catch (err) {
+      setDecisionError(err instanceof Error ? err.message : 'Could not update request.');
+    } finally {
+      setDecidingUserId(null);
     }
   }
 
@@ -516,6 +557,7 @@ function AttendeeRoster({ eventId, organizerId, canRate }: { eventId: string; or
     <View style={styles.rosterCard}>
       <Text style={styles.rosterTitle}>👥 Players ({attendees.length})</Text>
       {error && <Text style={styles.error}>{error}</Text>}
+      {decisionError && <Text style={styles.error}>{decisionError}</Text>}
       {attendees.map((attendee) => (
         <PersonRow
           key={attendee.user_id}
@@ -523,8 +565,17 @@ function AttendeeRoster({ eventId, organizerId, canRate }: { eventId: string; or
           skillLevel={attendee.profiles?.skill_level ?? null}
           contact={attendee.profiles?.contact_info}
           credit={credits[attendee.user_id]}
-          statusLabel={attendee.status === 'accepted' ? 'Accepted' : 'Pending'}
-          statusTone={attendee.status === 'accepted' ? 'green' : 'neutral'}
+          statusLabel={attendee.status === 'accepted' ? 'Accepted' : attendee.status === 'declined' ? 'Declined' : 'Pending'}
+          statusTone={attendee.status === 'accepted' ? 'green' : attendee.status === 'declined' ? 'danger' : 'neutral'}
+          decision={
+            attendee.status === 'pending'
+              ? {
+                  onAccept: () => handleDecide(attendee.user_id, 'accepted'),
+                  onDecline: () => handleDecide(attendee.user_id, 'declined'),
+                  loading: decidingUserId === attendee.user_id,
+                }
+              : undefined
+          }
           rating={
             canRate && attendee.status === 'accepted'
               ? { value: myRatings[attendee.user_id] ?? 0, onChange: (score) => handleRate(attendee.user_id, score) }
@@ -559,6 +610,7 @@ const styles = StyleSheet.create({
   section: { gap: Space.sm },
   sectionTitle: { fontSize: 20, fontFamily: Font.displayBlack, color: Court.ink, marginBottom: 0 },
   label: { fontWeight: '700', color: Court.ink, marginTop: Space.md },
+  creditRow: { flexDirection: 'row', alignItems: 'center', gap: Space.sm },
   input: {
     borderWidth: 1,
     borderColor: Court.line,
@@ -602,4 +654,5 @@ const styles = StyleSheet.create({
   rosterTitle: { fontFamily: Font.display, fontSize: 13, color: Court.ink },
   rosterRow: { gap: 4 },
   rosterName: { fontFamily: Font.display, fontSize: 13, color: Court.ink },
+  decisionRow: { flexDirection: 'row', gap: Space.sm, marginTop: Space.xs },
 });
