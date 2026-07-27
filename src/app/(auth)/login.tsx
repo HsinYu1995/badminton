@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
+import { useI18n } from '@/lib/i18n';
 
 export default function LoginScreen() {
   const { signInWithGoogle } = useAuth();
+  const { t } = useI18n();
   const [error, setError] = useState<string | null>(null);
 
   async function handlePress() {
@@ -11,15 +13,15 @@ export default function LoginScreen() {
     try {
       await signInWithGoogle();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign-in failed');
+      setError(err instanceof Error ? err.message : t('auth.signInFailed'));
     }
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Sign in</Text>
+      <Text style={styles.title}>{t('auth.signIn')}</Text>
       <Pressable style={styles.button} onPress={handlePress}>
-        <Text style={styles.buttonText}>Sign in with Google</Text>
+        <Text style={styles.buttonText}>{t('auth.signInWithGoogle')}</Text>
       </Pressable>
       {error && <Text style={styles.error}>{error}</Text>}
     </View>
