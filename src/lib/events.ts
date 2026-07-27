@@ -29,6 +29,12 @@ export function formatStartTime(startTime: string, locale: LocaleTag = 'en-US'):
 const NTD_TO_USD_RATE = 31.5;
 
 export function formatFee(fee: number, locale?: LocaleTag): string {
+  // Temporary back-compat shim: `event-card.tsx` still calls `formatFee(event.fee)`
+  // with no locale (until Task 8 migrates it), so omitting `locale` reproduces the
+  // old hardcoded output verbatim rather than falling back to a fixed LocaleTag -
+  // that's why `formatFee(150)` ('NT$150') and `formatFee(150, 'en-US')`
+  // ('~$4.76 USD') deliberately differ. Remove this branch once every caller
+  // passes an explicit locale.
   if (locale === undefined) {
     return fee === 0 ? 'Free' : `NT$${fee}`;
   }
