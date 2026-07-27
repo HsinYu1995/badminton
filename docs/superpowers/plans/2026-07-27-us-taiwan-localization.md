@@ -19,6 +19,7 @@
 - `formatStartTime`: uses `Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' })` instead of no-arg `toLocaleDateString`/`toLocaleTimeString`.
 - Raw Supabase/Postgres error messages surfaced verbatim (`venue-picker.tsx`'s `error.message`) stay untranslated English - explicitly out of scope.
 - Every existing test in `tests/unit/*-test.tsx` must keep passing unchanged. Screens rendered via `renderRouter` use the default `'en-US'` bucket (the root `__mocks__/expo-localization.js`); calls into `formatDistance`/`formatFee` made *without* an explicit `locale` argument (any not-yet-migrated call site) instead reproduce that specific function's own prior hardcoded output exactly, which is not uniformly `'en-US'`-shaped - see each function's default/fallback in Task 2. New `zh-TW` coverage is added as new, separate test files, never by editing existing assertions to expect Mandarin.
+  - **Narrow, deliberate exception:** once a screen task wires a real explicit `locale` into `formatFee`/`formatDistance` at a call site a pre-existing test exercises (this happens once, in Task 8's `event-card.tsx`), that pre-existing test's asserted *numbers* (not text) may legitimately change from the old NT$/metric shim output to real `'en-US'` USD/imperial output - that's the feature working correctly for the first time there, not a regression. Task 8 documents the exact two assertions this applies to. This exception does not extend to translated *text* (button labels, headers, etc.), which stays identical English under the `en-US` bucket in every task.
 - Full plan is done when `npm test` passes with zero failures.
 
 ---
@@ -1529,7 +1530,13 @@ Expected: PASS
 - [ ] **Step 7: Run the full suite (including discover-test.tsx, discover-join-test.tsx, discover-pagination-test.tsx, discover-search-test.tsx, discover-events-test.ts, compute-player-counts-test.ts)**
 
 Run: `npx jest`
-Expected: PASS. These pre-existing tests render under the default `en-US` mock, so `t('discover.join')` etc. resolve to the exact same English strings they already assert on. Same pre-existing failure set from `profile.tsx`/`event/[id].tsx` `.label` usages (event-card.tsx's is now fixed).
+
+**Expected, narrow exception to "zero edits to pre-existing tests":** most of these pre-existing tests render under the default `en-US` mock, so `t('discover.join')` etc. resolve to the exact same English *text* they already assert on - no change needed there. But `formatFee`/`formatDistance` are different: their whole purpose (Task 2) is to make `'en-US'` produce genuinely different *numbers* (USD instead of NT$, miles instead of km) than the old un-migrated shim did. Once `EventCard` passes a real explicit locale (this task), any pre-existing test asserting the *old* NT$/metric numbers under the implicit `en-US` bucket is asserting stale, pre-feature behavior - not a regression to preserve, but the feature working correctly for the first time at this call site. Two assertions fall into this category and need updating to the new, correct `en-US` output:
+
+- `tests/unit/discover-test.tsx:90` - `expect(screen.getByText(/NT\$150/)).toBeTruthy();` becomes `expect(screen.getByText(/\$4\.76/)).toBeTruthy();` (`formatFee(150, 'en-US')` = `150 / 31.5 = 4.7619...` → `'~$4.76 USD'`). Line 89's `expect(screen.getByText(/Free/)).toBeTruthy();` (the zero-fee case) needs NO change - `'Free'` is identical under both the old shim and the new explicit `'en-US'` branch.
+- `tests/unit/discover-pagination-test.tsx:104` - `expect(screen.getAllByText('500 m away').length).toBe(DISCOVER_PAGE_SIZE);` becomes `expect(screen.getAllByText('0.3 mi away').length).toBe(DISCOVER_PAGE_SIZE);` (`formatDistance(500, 'en-US')`: `500 / 1609.34 = 0.3107mi`, not under the ~0.1mi feet threshold, so `.toFixed(1)` → `'0.3 mi away'`). Update the comment on the line above it too.
+
+No other pre-existing test asserts on fee or distance display text (confirmed by search) - do not touch any other file's assertions. Expected result after these two edits: PASS, with the same pre-existing failure set from `profile.tsx`/`event/[id].tsx` `.label` usages (event-card.tsx's own `.label` fallout is fixed by this task).
 
 - [ ] **Step 8: Commit**
 
