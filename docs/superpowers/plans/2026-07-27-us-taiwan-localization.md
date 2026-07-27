@@ -792,8 +792,10 @@ jest.mock('@/lib/supabase', () => ({
 describe('SkillBandSelector under zh-TW locale', () => {
   it('renders the Mandarin label for each skill band', async () => {
     await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)/create' });
-    expect(screen.getByText('新手')).toBeTruthy();
-    expect(screen.getByText('職業級')).toBeTruthy();
+    // Create renders two SkillBandSelectors (skill range "from" and "to"),
+    // each showing the full 7-band list, so every label appears twice.
+    expect(screen.getAllByText('新手')).toHaveLength(2);
+    expect(screen.getAllByText('職業級')).toHaveLength(2);
   });
 });
 ```
