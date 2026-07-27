@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet } from 
 import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
+import { useI18n } from '@/lib/i18n';
 
 export type Venue = {
   id: string;
@@ -17,6 +18,7 @@ type VenuePickerProps = {
 
 export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
   const { session } = useAuth();
+  const { t } = useI18n();
   const [venues, setVenues] = useState<Venue[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -48,13 +50,13 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!permission.granted) {
-        setLocationError('Location permission is required to add a venue.');
+        setLocationError(t('venuePicker.locationPermissionRequired'));
         return;
       }
       const position = await Location.getCurrentPositionAsync();
       setCoords({ latitude: position.coords.latitude, longitude: position.coords.longitude });
     } catch (err) {
-      setLocationError(err instanceof Error ? err.message : 'Could not get current location.');
+      setLocationError(err instanceof Error ? err.message : t('venuePicker.couldNotGetLocation'));
     } finally {
       setLocatingInProgress(false);
     }
@@ -83,14 +85,14 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
       setNewVenueAddress('');
       setCoords(null);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Could not save venue.');
+      setSaveError(err instanceof Error ? err.message : t('venuePicker.couldNotSaveVenue'));
     } finally {
       setSavingVenue(false);
     }
   }
 
   if (loading) return <ActivityIndicator />;
-  if (loadError) return <Text style={styles.error}>Could not load venues: {loadError}</Text>;
+  if (loadError) return <Text style={styles.error}>{t('venuePicker.couldNotLoadVenues', { error: loadError })}</Text>;
 
   return (
     <View style={styles.container}>
@@ -107,7 +109,7 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
 
       {!showNewVenueForm && (
         <Pressable style={styles.addVenueRow} onPress={() => setShowNewVenueForm(true)}>
-          <Text style={styles.addVenueText}>+ Add new venue</Text>
+          <Text style={styles.addVenueText}>{t('venuePicker.addNewVenue')}</Text>
         </Pressable>
       )}
 
@@ -115,26 +117,26 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
         <View style={styles.newVenueForm}>
           <TextInput
             style={styles.input}
-            placeholder="Venue name"
+            placeholder={t('venuePicker.venueNamePlaceholder')}
             value={newVenueName}
             onChangeText={setNewVenueName}
           />
           <TextInput
             style={styles.input}
-            placeholder="Address"
+            placeholder={t('venuePicker.addressPlaceholder')}
             value={newVenueAddress}
             onChangeText={setNewVenueAddress}
           />
           <Pressable style={styles.locationButton} onPress={handleUseCurrentLocation} disabled={locatingInProgress}>
             <Text style={styles.locationButtonText}>
-              {locatingInProgress ? 'Getting location...' : coords ? 'Location captured' : 'Use current location'}
+              {locatingInProgress ? t('venuePicker.gettingLocation') : coords ? t('venuePicker.locationCaptured') : t('venuePicker.useCurrentLocation')}
             </Text>
           </Pressable>
           {locationError && (
             <View>
               <Text style={styles.error}>{locationError}</Text>
               <Pressable onPress={handleUseCurrentLocation}>
-                <Text style={styles.retryText}>Retry</Text>
+                <Text style={styles.retryText}>{t('venuePicker.retry')}</Text>
               </Pressable>
             </View>
           )}
@@ -143,7 +145,7 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
             disabled={!coords || !newVenueName.trim() || !newVenueAddress.trim() || savingVenue}
             onPress={handleSaveVenue}
           >
-            <Text style={styles.saveButtonText}>{savingVenue ? 'Saving...' : 'Save venue'}</Text>
+            <Text style={styles.saveButtonText}>{savingVenue ? t('venuePicker.saving') : t('venuePicker.saveVenue')}</Text>
           </Pressable>
           {saveError && <Text style={styles.error}>{saveError}</Text>}
         </View>

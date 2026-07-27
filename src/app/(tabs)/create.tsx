@@ -3,7 +3,7 @@ import { Text, TextInput, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { en } from '@/lib/i18n';
+import { useI18n } from '@/lib/i18n';
 import { type SkillBandId } from '@/lib/skill-bands';
 import { validateEventDraft } from '@/lib/event-draft';
 import { VenuePicker, type Venue } from '@/components/venue-picker';
@@ -17,6 +17,7 @@ import { DatePickerField } from '@/components/date-picker-field';
 export default function CreateEventScreen() {
   const { session } = useAuth();
   const router = useRouter();
+  const { t } = useI18n();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -35,7 +36,7 @@ export default function CreateEventScreen() {
     setSubmitError(null);
 
     if (!session) {
-      setSubmitError('You must be signed in to create an event.');
+      setSubmitError(t('create.mustBeSignedIn'));
       return;
     }
 
@@ -51,7 +52,7 @@ export default function CreateEventScreen() {
       startTimeText,
     });
     if (!result.ok) {
-      setSubmitError(en[`errors.${result.errorKey}`]);
+      setSubmitError(t(`errors.${result.errorKey}`));
       return;
     }
     const event = result.event;
@@ -73,7 +74,7 @@ export default function CreateEventScreen() {
       if (error) throw error;
       router.replace('/');
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Could not create event.');
+      setSubmitError(err instanceof Error ? err.message : t('create.couldNotCreate'));
     } finally {
       setSubmitting(false);
     }
@@ -81,27 +82,27 @@ export default function CreateEventScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
-      <Text style={styles.title}>🏸 Host a game</Text>
-      <Text style={styles.subtitle}>Fill in the details so players know what to expect</Text>
+      <Text style={styles.title}>{t('create.headerTitle')}</Text>
+      <Text style={styles.subtitle}>{t('create.subtitle')}</Text>
       <SectionDivider />
 
-      <Text style={styles.label}>Event title</Text>
-      <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Friendly doubles" placeholderTextColor={Court.inkSecondary} />
+      <Text style={styles.label}>{t('create.eventTitleLabel')}</Text>
+      <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder={t('create.eventTitlePlaceholder')} placeholderTextColor={Court.inkSecondary} />
 
-      <Text style={styles.label}>Description</Text>
+      <Text style={styles.label}>{t('create.descriptionLabel')}</Text>
       <TextInput
         style={[styles.input, styles.multiline]}
         value={description}
         onChangeText={setDescription}
-        placeholder="Optional details for players"
+        placeholder={t('create.descriptionPlaceholder')}
         placeholderTextColor={Court.inkSecondary}
         multiline
       />
 
-      <Text style={styles.label}>📍 Venue</Text>
+      <Text style={styles.label}>{t('create.venueLabel')}</Text>
       <VenuePicker selectedVenueId={venue?.id ?? null} onSelect={setVenue} />
 
-      <Text style={styles.label}>👥 Number of players</Text>
+      <Text style={styles.label}>{t('create.playersLabel')}</Text>
       <TextInput
         style={styles.input}
         value={headcountText}
@@ -109,25 +110,25 @@ export default function CreateEventScreen() {
         keyboardType="number-pad"
       />
 
-      <Text style={styles.label}>💰 Fee (NT$, 0 for free)</Text>
+      <Text style={styles.label}>{t('create.feeLabel')}</Text>
       <TextInput style={styles.input} value={feeText} onChangeText={setFeeText} keyboardType="number-pad" />
 
-      <FieldCard icon="📅" label="Date">
+      <FieldCard icon="📅" label={t('create.dateLabel')}>
         <DatePickerField value={date} onChange={setDate} />
       </FieldCard>
 
-      <Text style={styles.label}>🕒 Start time (24-hour, e.g. 18:30)</Text>
+      <Text style={styles.label}>{t('create.startTimeLabel')}</Text>
       <TextInput
         style={styles.input}
         value={startTimeText}
         onChangeText={setStartTimeText}
-        placeholder="18:30"
+        placeholder={t('create.startTimePlaceholder')}
         placeholderTextColor={Court.inkSecondary}
         keyboardType="numbers-and-punctuation"
         maxLength={5}
       />
 
-      <Text style={styles.label}>⏱️ Duration (minutes)</Text>
+      <Text style={styles.label}>{t('create.durationLabel')}</Text>
       <TextInput
         style={styles.input}
         value={durationMinutesText}
@@ -135,14 +136,14 @@ export default function CreateEventScreen() {
         keyboardType="number-pad"
       />
 
-      <Text style={styles.label}>🏆 Skill range: from</Text>
+      <Text style={styles.label}>{t('create.skillFromLabel')}</Text>
       <SkillBandSelector selectedId={fromBandId} onSelect={setFromBandId} />
 
-      <Text style={styles.label}>🏆 Skill range: to</Text>
+      <Text style={styles.label}>{t('create.skillToLabel')}</Text>
       <SkillBandSelector selectedId={toBandId} onSelect={setToBandId} />
 
       <ActionButton
-        label={submitting ? 'Creating...' : 'Create event'}
+        label={submitting ? t('create.creating') : t('create.submit')}
         onPress={handleSubmit}
         loading={submitting}
         style={styles.submitButton}
