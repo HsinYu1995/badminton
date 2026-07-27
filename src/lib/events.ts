@@ -4,6 +4,8 @@
 // Declined requests are excluded the same as before.
 export const ACTIVE_PARTICIPANT_STATUSES = ['accepted'] as const;
 
+import type { LocaleTag } from '@/lib/i18n';
+
 export type EventListItem = {
   id: string;
   organizer_id: string;
@@ -17,23 +19,36 @@ export type EventListItem = {
   venues: { name: string } | null;
 };
 
-export function formatStartTime(startTime: string): string {
+export function formatStartTime(startTime: string, locale: LocaleTag = 'en-US'): string {
   const date = new Date(startTime);
-  return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
-export function formatFee(fee: number): string {
-  return fee === 0 ? 'Free' : `NT$${fee}`;
+// No live FX source - a fixed, approximate, hardcoded rate for display
+// purposes only, not a real currency conversion.
+const NTD_TO_USD_RATE = 31.5;
+
+export function formatFee(fee: number, locale?: LocaleTag): string {
+  if (locale === undefined) {
+    return fee === 0 ? 'Free' : `NT$${fee}`;
+  }
+  if (fee === 0) return locale === 'zh-TW' ? '免費' : 'Free';
+  if (locale === 'zh-TW') return `NT$${fee}`;
+  return `~$${(fee / NTD_TO_USD_RATE).toFixed(2)} USD`;
 }
 
 // Sub-kilometer distances read as meters (whole numbers - "450 m away"),
 // anything further as kilometers to one decimal place ("2.3 km away"),
-// matching how Google Maps/most map apps switch units.
-export function formatDistance(meters: number): string {
-  if (meters < 1000) {
-    return `${Math.round(meters)} m away`;
+// matching how Google Maps/most map apps switch units. en-US uses the
+// imperial equivalent (feet under ~0.1mi, else miles to one decimal).
+export function formatDistance(meters: number, locale: LocaleTag = 'zh-TW'): string {
+  if (locale === 'zh-TW') {
+    if (meters < 1000) return `${Math.round(meters)} m away`;
+    return `${(meters / 1000).toFixed(1)} km away`;
   }
-  return `${(meters / 1000).toFixed(1)} km away`;
+  const miles = meters / 1609.34;
+  if (miles < 0.1) return `${Math.round(meters * 3.28084)} ft away`;
+  return `${miles.toFixed(1)} mi away`;
 }
 
 export function isPastEvent(event: Pick<EventListItem, 'end_time'>, now: number = Date.now()): boolean {

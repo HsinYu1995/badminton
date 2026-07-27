@@ -9,6 +9,16 @@ it('formats the average to one decimal place with the ratings count', () => {
   expect(formatCredit({ credit: 5, ratingsCount: 1 })).toBe('★ 5.0 (1)');
 });
 
+describe('formatCredit locale handling', () => {
+  it('translates Unrated for zh-TW', () => {
+    expect(formatCredit(undefined, 'zh-TW')).toBe('未評分');
+  });
+
+  it('keeps the star format locale-agnostic', () => {
+    expect(formatCredit({ credit: 4.5, ratingsCount: 12 }, 'zh-TW')).toBe('★ 4.5 (12)');
+  });
+});
+
 function fakeSupabase(overrides: { from?: (table: string) => unknown }) {
   return { from: overrides.from } as never;
 }
