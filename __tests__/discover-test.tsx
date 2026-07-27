@@ -62,16 +62,12 @@ jest.mock('@/lib/supabase', () => ({
         return {
           select: () => ({
             eq: () => Promise.resolve({ data: [], error: null }),
+            // A real query filters to ACTIVE_PARTICIPANT_STATUSES (accepted
+            // only) server-side, so a pending row would never come back here -
+            // this fixture only includes what a real accepted-only query
+            // could actually return.
             in: () => ({
-              in: () =>
-                Promise.resolve({
-                  data: [
-                    { event_id: 'event-1', status: 'pending' },
-                    { event_id: 'event-1', status: 'pending' },
-                    { event_id: 'event-1', status: 'accepted' },
-                  ],
-                  error: null,
-                }),
+              in: () => Promise.resolve({ data: [{ event_id: 'event-1', status: 'accepted' }], error: null }),
             }),
           }),
         };
@@ -92,10 +88,10 @@ it(
     expect(screen.getByText(/Fake Gym/)).toBeTruthy();
     expect(screen.getByText(/Free/)).toBeTruthy();
     expect(screen.getByText(/NT\$150/)).toBeTruthy();
-    // event-1 has 3 active (pending + accepted) participant rows in the mock,
-    // plus the organizer who has no event_participants row of their own;
-    // event-2 has none, so it shows just the organizer.
-    expect(screen.getByText('4/8 players')).toBeTruthy();
+    // event-1 has 1 accepted participant row in the mock, plus the organizer
+    // who has no event_participants row of their own; event-2 has none, so
+    // it shows just the organizer.
+    expect(screen.getByText('2/8 players')).toBeTruthy();
     expect(screen.getByText('1/4 players')).toBeTruthy();
   },
   15000

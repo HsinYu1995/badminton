@@ -13,7 +13,7 @@ One of 7 named groupings derived from **Skill level** for display purposes only 
 _Avoid_: Skill tier (ambiguous with Skill level - use Skill level for the number, Skill band for the label)
 
 **Player count**:
-The number of people currently in an Event: the organizer (always exactly one - organizers have no `event_participants` row of their own) plus every participant with a pending or accepted request. Computed for display, never stored. Distinct from an Event's `headcount_max`, which is its capacity limit, not who's actually in it.
+The number of people currently in an Event: the organizer (always exactly one - organizers have no `event_participants` row of their own) plus every **accepted** participant. Computed for display, never stored. Distinct from an Event's `headcount_max`, which is its capacity limit, not who's actually in it.
 _Avoid_: Headcount, current headcount (ambiguous with `headcount_max` - use Player count for "who's in it now", headcount_max for "the cap")
 
 **Credit**:
@@ -25,7 +25,7 @@ _Avoid_: Rating (ambiguous between the act and the aggregate - use Rating for on
 - A **Profile** has at most one **Skill level** - it is nullable until the player self-reports it (a **Profile** created by signup, before onboarding, has no **Skill level** yet).
 - An **Event** has a skill range, expressed as a min and max **Skill level** (skill_min <= skill_max).
 - A **Skill band** is a pure function of a **Skill level** - never persisted.
-- An **Event**'s **Player count** is a pure function of its organizer (implicit, always 1) and its pending/accepted **event_participants** rows - never persisted, and never exceeds `headcount_max` in a well-formed **Event** (not currently enforced at signup time).
+- An **Event**'s **Player count** is a pure function of its organizer (implicit, always 1) and its accepted **event_participants** rows - never persisted, and never exceeds `headcount_max` in a well-formed **Event** (not currently enforced at signup time).
 
 ## Example dialogue
 
