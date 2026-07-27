@@ -23,49 +23,68 @@ async function main() {
   const alice = await createSignedInUser(`alice-${Date.now()}@example.com`);
   const bob = await createSignedInUser(`bob-${Date.now()}@example.com`);
 
-  const { data: updated, error: updateErr } = await alice.client
+  // skill_level still lives on profiles.
+  const { data: updatedProfile, error: updateErr } = await alice.client
     .from('profiles')
-    .update({
-      bio: 'Weekend warrior, mostly doubles.',
-      contact_info: 'LINE: alice123',
-      skill_level: 8,
-    })
+    .update({ skill_level: 8 })
     .eq('id', alice.userId)
-    .select('bio, contact_info, skill_level')
+    .select('skill_level')
     .single();
   assert(!updateErr, `self profile update failed: ${updateErr?.message}`);
-  assert.strictEqual(updated.bio, 'Weekend warrior, mostly doubles.', 'bio should round-trip');
-  assert.strictEqual(updated.contact_info, 'LINE: alice123', 'contact_info should round-trip');
-  assert.strictEqual(Number(updated.skill_level), 8, 'skill_level should round-trip');
+  assert.strictEqual(Number(updatedProfile.skill_level), 8, 'skill_level should round-trip');
+
+  // bio/contact_info live in profile_contact (see
+  // 20260726120000_profile_contact_visibility.sql) - upsert, since a fresh
+  // profile has no row there yet.
+  const { data: updatedContact, error: contactErr } = await alice.client
+    .from('profile_contact')
+    .upsert({ id: alice.userId, bio: 'Weekend warrior, mostly doubles.', contact_info: 'LINE: alice123' })
+    .select('bio, contact_info')
+    .single();
+  assert(!contactErr, `self contact upsert failed: ${contactErr?.message}`);
+  assert.strictEqual(updatedContact.bio, 'Weekend warrior, mostly doubles.', 'bio should round-trip');
+  assert.strictEqual(updatedContact.contact_info, 'LINE: alice123', 'contact_info should round-trip');
 
   const { data: freshProfile, error: freshErr } = await admin
-    .from('profiles')
-    .select('bio, contact_info, skill_level')
+    .from('profile_contact')
+    .select('bio, contact_info')
     .eq('id', alice.userId)
     .single();
   assert(!freshErr, `admin re-read failed: ${freshErr?.message}`);
   assert.strictEqual(freshProfile.bio, 'Weekend warrior, mostly doubles.', 'bio should persist');
 
-  await bob.client
+  // Bob (no relationship to Alice at all) can't edit her skill_level...
+  await bob.client.from('profiles').update({ skill_level: 1 }).eq('id', alice.userId);
+  const { data: aliceProfileAfterBobAttempt } = await admin
     .from('profiles')
-    .update({ bio: 'Hacked bio', contact_info: 'Hacked contact', skill_level: 1 })
-    .eq('id', alice.userId);
-  const { data: aliceAfterBobAttempt } = await admin
-    .from('profiles')
-    .select('bio, contact_info, skill_level')
+    .select('skill_level')
     .eq('id', alice.userId)
     .single();
-  assert.strictEqual(aliceAfterBobAttempt.bio, 'Weekend warrior, mostly doubles.', 'RLS should block Bob from editing Alice\'s bio');
-  assert.strictEqual(aliceAfterBobAttempt.contact_info, 'LINE: alice123', 'RLS should block Bob from editing Alice\'s contact_info');
-  assert.strictEqual(Number(aliceAfterBobAttempt.skill_level), 8, 'RLS should block Bob from editing Alice\'s skill_level');
+  assert.strictEqual(Number(aliceProfileAfterBobAttempt.skill_level), 8, "RLS should block Bob from editing Alice's skill_level");
 
-  const { error: clearErr } = await alice.client
-    .from('profiles')
-    .update({ bio: null, contact_info: null })
-    .eq('id', alice.userId);
+  // ...nor her bio/contact_info...
+  await bob.client.from('profile_contact').upsert({ id: alice.userId, bio: 'Hacked bio', contact_info: 'Hacked contact' });
+  const { data: aliceContactAfterBobAttempt } = await admin
+    .from('profile_contact')
+    .select('bio, contact_info')
+    .eq('id', alice.userId)
+    .single();
+  assert.strictEqual(aliceContactAfterBobAttempt.bio, 'Weekend warrior, mostly doubles.', "RLS should block Bob from editing Alice's bio");
+  assert.strictEqual(aliceContactAfterBobAttempt.contact_info, 'LINE: alice123', "RLS should block Bob from editing Alice's contact_info");
+
+  // ...nor even READ it: no shared event, so Bob's select should come back
+  // empty rather than exposing the row (see can_view_contact in the same
+  // migration - this is the fix for the leak the migration closes).
+  const { data: bobsView, error: bobsViewErr } = await bob.client.from('profile_contact').select('bio, contact_info').eq('id', alice.userId);
+  assert(!bobsViewErr, `Bob's read attempt should not error, just return nothing: ${bobsViewErr?.message}`);
+  assert.strictEqual((bobsView ?? []).length, 0, "RLS should hide Alice's contact row from unrelated Bob");
+
+  const { error: clearErr } = await alice.client.from('profile_contact').upsert({ id: alice.userId, bio: null, contact_info: null });
   assert(!clearErr, `clearing bio/contact_info back to null failed: ${clearErr?.message}`);
 
-  console.log('PASS: profiles.bio/contact_info/skill_level round-trip on self-update and are RLS-protected from other users');
+  console.log(
+    'PASS: profiles.skill_level and profile_contact.bio/contact_info round-trip on self-update, are RLS-protected from unrelated users, and unrelated users cannot even read the contact row'
+  );
 }
 
 main()
