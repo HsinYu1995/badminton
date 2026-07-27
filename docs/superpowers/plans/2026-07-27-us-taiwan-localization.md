@@ -899,13 +899,26 @@ jest.mock('expo-localization', () => ({
   useLocales: () => [{ languageTag: 'zh-TW', languageCode: 'zh', regionCode: 'TW', textDirection: 'ltr' }],
 }));
 
+// A stable module-level reference matters here: this test renders '/(tabs)',
+// which is DiscoverScreen (the index tab) - its loadEvents useCallback
+// depends on [session], which feeds a useFocusEffect. A mock that returns a
+// fresh `session` object literal on every call gives that dependency a new
+// identity every render, re-firing the focus effect forever and hanging the
+// test until Jest's own per-test timeout kills it (see the same gotcha
+// documented in tests/unit/discover-test.tsx).
+const FAKE_SESSION = { user: { id: 'fake-user-id' } };
+
 jest.mock('@/lib/auth-context', () => ({
   AuthProvider: ({ children }: { children: unknown }) => children,
-  useAuth: () => ({ session: { user: { id: 'fake-user-id' } }, isLoading: false }),
+  useAuth: () => ({ session: FAKE_SESSION, isLoading: false }),
 }));
 
+// DiscoverScreen's fetchDiscoverPage calls supabase.rpc('discover_events', ...),
+// not supabase.from(...) - the mock must cover rpc or the render hangs
+// waiting on an undefined call.
 jest.mock('@/lib/supabase', () => ({
   supabase: {
+    rpc: () => Promise.resolve({ data: [], error: null }),
     from: () => ({
       select: () => ({
         in: () => Promise.resolve({ data: [] }),
@@ -916,10 +929,17 @@ jest.mock('@/lib/supabase', () => ({
   },
 }));
 
+jest.mock('expo-location', () => ({
+  requestForegroundPermissionsAsync: () => Promise.resolve({ granted: false }),
+}));
+
 describe('Tab bar under zh-TW locale', () => {
   it('renders Mandarin tab titles', async () => {
     await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)' });
-    expect(screen.getByText('探索')).toBeTruthy();
+    // Both the header title and the tab bar's own label render the same
+    // string (TabsLayout doesn't set headerShown: false and doesn't
+    // override tabBarLabel), so more than one element carries this text.
+    expect(screen.getAllByText('探索').length).toBeGreaterThan(0);
   });
 });
 ```
