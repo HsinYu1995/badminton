@@ -69,11 +69,11 @@
   "jest": {
     "preset": "jest-expo",
     "testMatch": [
-      "<rootDir>/tests/unit/**/*.[jt]s?(x)"
+      "**/tests/unit/**/*.[jt]s?(x)"
     ],
     "testPathIgnorePatterns": [
-      "/node_modules/",
-      "<rootDir>/tests/integration/"
+      "[\\\\/]node_modules[\\\\/]",
+      "tests[\\\\/]integration[\\\\/]"
     ],
     "modulePathIgnorePatterns": [
       "<rootDir>/.claude/worktrees/"
