@@ -3,6 +3,7 @@ import { Text, TextInput, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
+import { en } from '@/lib/i18n';
 import { type SkillBandId } from '@/lib/skill-bands';
 import { validateEventDraft } from '@/lib/event-draft';
 import { VenuePicker, type Venue } from '@/components/venue-picker';
@@ -50,7 +51,7 @@ export default function CreateEventScreen() {
       startTimeText,
     });
     if (!result.ok) {
-      setSubmitError(result.error);
+      setSubmitError(en[`errors.${result.errorKey}`]);
       return;
     }
     const event = result.event;
