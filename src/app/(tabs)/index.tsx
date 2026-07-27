@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { ACTIVE_PARTICIPANT_STATUSES, computePlayerCounts, type EventListItem } from '@/lib/events';
 import { DISCOVER_PAGE_SIZE, fetchDiscoverPage, type Coordinates } from '@/lib/discover-events';
 import { Court, Font, Space } from '@/constants/badminton-theme';
+import { useI18n, pluralize } from '@/lib/i18n';
 import { EventCard } from '@/components/event-card';
 import { SearchBar } from '@/components/search-bar';
 import { ActionButton } from '@/components/action-button';
@@ -15,6 +16,7 @@ import { SectionDivider } from '@/components/section-divider';
 type ParticipantStatus = 'pending' | 'accepted' | 'declined';
 
 export default function DiscoverScreen() {
+  const { t, locale } = useI18n();
   const { session } = useAuth();
   const [coords, setCoords] = useState<Coordinates>(null);
   const [events, setEvents] = useState<EventListItem[]>([]);
@@ -138,7 +140,7 @@ export default function DiscoverScreen() {
       notePendingSpotsFilled(previousCounts, newCounts, newRequests);
       hasLoadedOnceRef.current = true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load events.');
+      setError(err instanceof Error ? err.message : t('discover.couldNotLoadEvents'));
     } finally {
       if (isFirstLoad) setLoading(false);
     }
@@ -169,7 +171,7 @@ export default function DiscoverScreen() {
       ]);
       notePendingSpotsFilled(previousCounts, newCounts, newRequests);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load more events.');
+      setError(err instanceof Error ? err.message : t('discover.couldNotLoadMoreEvents'));
     } finally {
       setLoadingMore(false);
     }
@@ -190,7 +192,7 @@ export default function DiscoverScreen() {
       // move here.
       setMyRequests((prev) => ({ ...prev, [event.id]: 'pending' }));
     } catch (err) {
-      setJoinError(err instanceof Error ? err.message : 'Could not join event.');
+      setJoinError(err instanceof Error ? err.message : t('discover.couldNotJoin'));
     } finally {
       setJoiningEventId(null);
     }
@@ -228,7 +230,7 @@ export default function DiscoverScreen() {
         setParticipantCounts((prev) => ({ ...prev, [event.id]: Math.max((prev[event.id] ?? 1) - 1, 1) }));
       }
     } catch (err) {
-      setCancelError(err instanceof Error ? err.message : 'Could not cancel request.');
+      setCancelError(err instanceof Error ? err.message : t('discover.couldNotCancel'));
     } finally {
       setCancelingEventId(null);
     }
@@ -248,14 +250,14 @@ export default function DiscoverScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.title}>🏸 Discover</Text>
-        <Text style={styles.subtitle}>Find a pickup game near you</Text>
+        <Text style={styles.title}>{t('discover.headerTitle')}</Text>
+        <Text style={styles.subtitle}>{t('discover.subtitle')}</Text>
         <SectionDivider />
-        <SearchBar value={query} onChangeText={setQuery} placeholder="Search by title or venue" />
+        <SearchBar value={query} onChangeText={setQuery} placeholder={t('discover.searchPlaceholder')} />
       </View>
 
       {loading && <ActivityIndicator style={styles.spinner} color={Court.green} />}
-      {!loading && error && <Text style={styles.error}>Connection error: {error}</Text>}
+      {!loading && error && <Text style={styles.error}>{t('discover.connectionError', { error })}</Text>}
 
       {!loading && !error && (
         <FlatList
@@ -275,9 +277,9 @@ export default function DiscoverScreen() {
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Text style={styles.emptyEmoji}>{query ? '🔍' : '🏸'}</Text>
-              <Text style={styles.emptyTitle}>{query ? 'No matches' : 'No games yet'}</Text>
+              <Text style={styles.emptyTitle}>{query ? t('discover.noMatchesTitle') : t('discover.noGamesTitle')}</Text>
               <Text style={styles.emptySubtext}>
-                {query ? 'Try a different title or venue.' : 'Be the first to host a pickup game today.'}
+                {query ? t('discover.noMatchesSubtext') : t('discover.noGamesSubtext')}
               </Text>
             </View>
           }
@@ -292,10 +294,10 @@ export default function DiscoverScreen() {
                 distanceMeters={distances[event.id]}
                 action={
                   isOwnEvent ? (
-                    <Text style={styles.ownEventLabel}>Your event</Text>
+                    <Text style={styles.ownEventLabel}>{t('discover.yourEvent')}</Text>
                   ) : requestStatus === 'accepted' ? (
                     <ActionButton
-                      label="Leave event"
+                      label={t('discover.leaveEvent')}
                       onPress={() => handleCancelRequest(event)}
                       variant="danger"
                       loading={cancelingEventId === event.id}
@@ -304,22 +306,24 @@ export default function DiscoverScreen() {
                     <View style={styles.pendingAction}>
                       {filledSinceApplied[event.id] > 0 && (
                         <Text style={styles.filledNotice}>
-                          🔔 {filledSinceApplied[event.id]} {filledSinceApplied[event.id] === 1 ? 'spot' : 'spots'} filled
-                          since you applied
+                          {t('discover.spotsFilledNotice', {
+                            count: filledSinceApplied[event.id],
+                            spot: pluralize(filledSinceApplied[event.id], 'spot', 'spots', locale),
+                          })}
                         </Text>
                       )}
                       <ActionButton
-                        label="Cancel request"
+                        label={t('discover.cancelRequest')}
                         onPress={() => handleCancelRequest(event)}
                         variant="outline"
                         loading={cancelingEventId === event.id}
                       />
                     </View>
                   ) : requestStatus === 'declined' ? (
-                    <ActionButton label="Declined" onPress={() => {}} variant="muted" disabled />
+                    <ActionButton label={t('discover.declined')} onPress={() => {}} variant="muted" disabled />
                   ) : (
                     <ActionButton
-                      label="Join"
+                      label={t('discover.join')}
                       onPress={() => handleJoin(event)}
                       loading={joiningEventId === event.id}
                     />

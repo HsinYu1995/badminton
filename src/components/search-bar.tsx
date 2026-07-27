@@ -1,5 +1,6 @@
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { Court, Radius, Space } from '@/constants/badminton-theme';
+import { useI18n } from '@/lib/i18n';
 
 type SearchBarProps = {
   value: string;
@@ -8,6 +9,7 @@ type SearchBarProps = {
 };
 
 export function SearchBar({ value, onChangeText, placeholder }: SearchBarProps) {
+  const { t } = useI18n();
   return (
     <View style={styles.wrap}>
       <Text style={styles.icon}>🔍</Text>
@@ -15,9 +17,9 @@ export function SearchBar({ value, onChangeText, placeholder }: SearchBarProps) 
         style={styles.input}
         value={value}
         onChangeText={onChangeText}
-        placeholder={placeholder ?? 'Search events or venues'}
+        placeholder={placeholder ?? t('searchBar.defaultPlaceholder')}
         placeholderTextColor={Court.inkSecondary}
-        accessibilityLabel="Search events"
+        accessibilityLabel={t('searchBar.accessibilityLabel')}
         autoCapitalize="none"
         autoCorrect={false}
         clearButtonMode="while-editing"

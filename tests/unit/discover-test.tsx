@@ -87,7 +87,7 @@ it(
     expect(screen.getByText(/Fake Court/)).toBeTruthy();
     expect(screen.getByText(/Fake Gym/)).toBeTruthy();
     expect(screen.getByText(/Free/)).toBeTruthy();
-    expect(screen.getByText(/NT\$150/)).toBeTruthy();
+    expect(screen.getByText(/\$4\.76/)).toBeTruthy();
     // event-1 has 1 accepted participant row in the mock, plus the organizer
     // who has no event_participants row of their own; event-2 has none, so
     // it shows just the organizer.

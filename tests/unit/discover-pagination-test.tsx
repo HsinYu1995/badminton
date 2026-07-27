@@ -100,8 +100,8 @@ it(
     await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)' });
 
     await screen.findByText(firstPage[0].title);
-    // firstPage rows all have distance_meters: 500 -> "500 m away"
-    expect(screen.getAllByText('500 m away').length).toBe(DISCOVER_PAGE_SIZE);
+    // firstPage rows all have distance_meters: 500 -> "0.3 mi away"
+    expect(screen.getAllByText('0.3 mi away').length).toBe(DISCOVER_PAGE_SIZE);
   },
   15000
 );
