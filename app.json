@@ -38,7 +38,8 @@
         {
           "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location to set a new venue's pin."
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true,
