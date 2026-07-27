@@ -771,9 +771,22 @@ jest.mock('expo-localization', () => ({
   useLocales: () => [{ languageTag: 'zh-TW', languageCode: 'zh', regionCode: 'TW', textDirection: 'ltr' }],
 }));
 
+// Stable reference: see the comment in discover-test.tsx - a fresh `session`
+// object literal per call breaks any screen that depends on it in a
+// useCallback/useEffect dependency array.
+const FAKE_SESSION = { user: { id: 'fake-user-id' } };
+
 jest.mock('@/lib/auth-context', () => ({
   AuthProvider: ({ children }: { children: unknown }) => children,
-  useAuth: () => ({ session: { user: { id: 'fake-user-id' } }, isLoading: false }),
+  useAuth: () => ({ session: FAKE_SESSION, isLoading: false }),
+}));
+
+// The Create screen renders VenuePicker, which fetches venues on mount -
+// see create-validation-test.tsx for this same mock shape.
+jest.mock('@/lib/supabase', () => ({
+  supabase: {
+    from: () => ({ select: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }),
+  },
 }));
 
 describe('SkillBandSelector under zh-TW locale', () => {
@@ -854,9 +867,9 @@ export function SkillBandSelector({ selectedId, onSelect }: SkillBandSelectorPro
 
 Note: `` t(`skillBands.${band.id}`) `` - `band.id` is `SkillBandId`, so the template literal type resolves to one of the seven `'skillBands.*'` keys in `Translations`; this type-checks without a cast.
 
-- [ ] **Step 5: Root layout must already provide `I18nProvider` for this test to render at all**
+- [ ] **Step 5: `I18nProvider` must already be wired for this test to render at all**
 
-This test needs `I18nProvider` wrapping the app (Task 5). If Task 5 hasn't landed yet when running this task, do Task 5 first (swap task order) or temporarily wrap in this test file - but per this plan's task order, Task 5 runs next; **do Task 5 before Step 6 of this task if executing tasks strictly in order would leave this test unable to pass.** (Recommended: execute Task 5 immediately after Step 4 here, then return to Step 6.)
+This test needs `I18nProvider` wrapping the app (Task 5) already landed - `renderRouter` mounts the real root layout, and without `I18nProvider` in the tree, `useI18n()` throws. **Execute Task 5 before this task** (despite the numbering) if it hasn't landed yet.
 
 - [ ] **Step 6: Run the test to verify it passes**
 
