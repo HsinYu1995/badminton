@@ -1,4 +1,5 @@
 import { SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
+import { getEventDateBounds } from '@/lib/date-range';
 
 const START_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -71,6 +72,16 @@ export function validateEventDraft(draft: EventDraft, now: number = Date.now()):
   }
   if (startTime.getTime() <= now) {
     return { ok: false, error: 'Start time must be in the future.' };
+  }
+  // Mirrors DatePickerField's min/max (src/lib/date-range.ts) - that only
+  // constrains what the calendar widget shows, not what a manually-typed
+  // <input type="date"> value can hold, so this is the actual enforcement.
+  // `max` is midnight on Dec 31 of next year; end-of-day so an event
+  // scheduled anywhere on that date still counts as "next year," not later.
+  const { max: maxDate } = getEventDateBounds(new Date(now));
+  const maxStartTime = new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate(), 23, 59, 59, 999);
+  if (startTime.getTime() > maxStartTime.getTime()) {
+    return { ok: false, error: 'Start time must be within this year or next year.' };
   }
   const endTime = new Date(startTime.getTime() + durationMinutes * 60_000);
 
