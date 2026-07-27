@@ -18,7 +18,7 @@
 - `formatFee`: `'zh-TW'` unchanged (`NT$${fee}` / `免費`). `'en-US'` converts via fixed `NTD_TO_USD_RATE = 31.5` to `~$X.XX USD` / `Free`. This is a display-only approximation, not a real exchange rate - documented inline.
 - `formatStartTime`: uses `Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' })` instead of no-arg `toLocaleDateString`/`toLocaleTimeString`.
 - Raw Supabase/Postgres error messages surfaced verbatim (`venue-picker.tsx`'s `error.message`) stay untranslated English - explicitly out of scope.
-- Every existing test in `tests/unit/*-test.tsx` must keep passing unchanged (they render with the default `'en-US'` bucket). New `zh-TW` coverage is added as new, separate test files, never by editing existing assertions to expect Mandarin.
+- Every existing test in `tests/unit/*-test.tsx` must keep passing unchanged. Screens rendered via `renderRouter` use the default `'en-US'` bucket (the root `__mocks__/expo-localization.js`); calls into `formatDistance`/`formatFee` made *without* an explicit `locale` argument (any not-yet-migrated call site) instead reproduce that specific function's own prior hardcoded output exactly, which is not uniformly `'en-US'`-shaped - see each function's default/fallback in Task 2. New `zh-TW` coverage is added as new, separate test files, never by editing existing assertions to expect Mandarin.
 - Full plan is done when `npm test` passes with zero failures.
 
 ---
@@ -455,7 +455,7 @@ git commit -m "feat(i18n): add core i18n module with en-US/zh-TW dictionaries"
 
 **Interfaces:**
 - Consumes: `LocaleTag` from `src/lib/i18n.tsx` (Task 1).
-- Produces: `formatStartTime(startTime: string, locale: LocaleTag = 'en-US'): string`; `formatFee(fee: number, locale: LocaleTag = 'en-US'): string`; `formatDistance(meters: number, locale: LocaleTag = 'en-US'): string`; `formatCredit(credit: Credit | undefined, locale: LocaleTag = 'en-US'): string`. The default parameter means any call site not yet migrated in a later task still compiles.
+- Produces: `formatStartTime(startTime: string, locale: LocaleTag = 'en-US'): string`; `formatFee(fee: number, locale?: LocaleTag): string`; `formatDistance(meters: number, locale: LocaleTag = 'zh-TW'): string`; `formatCredit(credit: Credit | undefined, locale: LocaleTag = 'en-US'): string`. Each default (or, for `formatFee`, the omitted-`locale` fallback) is chosen per-function to exactly reproduce that function's own prior hardcoded behavior - they are not uniformly `'en-US'` because the old code itself was not uniformly locale-shaped (see each function's inline comment below). This means any call site not yet migrated in a later task keeps compiling *and* keeps its exact prior runtime output.
 
 - [ ] **Step 1: Read the current test file to match its style**
 
@@ -568,7 +568,17 @@ export function formatStartTime(startTime: string, locale: LocaleTag = 'en-US'):
 // purposes only, not a real currency conversion.
 const NTD_TO_USD_RATE = 31.5;
 
-export function formatFee(fee: number, locale: LocaleTag = 'en-US'): string {
+// `locale` is optional (not defaulted) because the *old* hardcoded behavior
+// this replaces was itself locale-inconsistent: zero fee was always the
+// English word "Free," nonzero was always NT$ - two different implicit
+// locales in one function, so no single LocaleTag default reproduces both.
+// Omitting `locale` entirely (every not-yet-migrated caller, until its own
+// task passes one explicitly) runs the exact old branching verbatim;
+// passing an explicit locale uses the new, locale-consistent branching.
+export function formatFee(fee: number, locale?: LocaleTag): string {
+  if (locale === undefined) {
+    return fee === 0 ? 'Free' : `NT$${fee}`;
+  }
   if (fee === 0) return locale === 'zh-TW' ? '免費' : 'Free';
   if (locale === 'zh-TW') return `NT$${fee}`;
   return `~$${(fee / NTD_TO_USD_RATE).toFixed(2)} USD`;
@@ -578,7 +588,11 @@ export function formatFee(fee: number, locale: LocaleTag = 'en-US'): string {
 // anything further as kilometers to one decimal place ("2.3 km away"),
 // matching how Google Maps/most map apps switch units. en-US uses the
 // imperial equivalent (feet under ~0.1mi, else miles to one decimal).
-export function formatDistance(meters: number, locale: LocaleTag = 'en-US'): string {
+// Defaults to 'zh-TW' (not 'en-US') because the old hardcoded behavior
+// this replaces was unconditionally metric - unlike formatFee, the old
+// output is uniform across all magnitudes, so one default value reproduces
+// it exactly for every not-yet-migrated caller.
+export function formatDistance(meters: number, locale: LocaleTag = 'zh-TW'): string {
   if (locale === 'zh-TW') {
     if (meters < 1000) return `${Math.round(meters)} m away`;
     return `${(meters / 1000).toFixed(1)} km away`;
@@ -596,6 +610,10 @@ Note: the literal `'Free'`/`'免費'` strings inline here (rather than calling `
 ```ts
 import type { LocaleTag } from '@/lib/i18n';
 
+// Defaults to 'en-US': the old hardcoded 'Unrated' was already an English
+// string, so this default reproduces it exactly for every not-yet-migrated
+// caller (unlike formatFee, there's no cross-branch inconsistency here -
+// the star format itself is locale-invariant).
 export function formatCredit(credit: Credit | undefined, locale: LocaleTag = 'en-US'): string {
   if (!credit) return locale === 'zh-TW' ? '未評分' : 'Unrated';
   return `★ ${credit.credit.toFixed(1)} (${credit.ratingsCount})`;
