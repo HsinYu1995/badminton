@@ -17,13 +17,3 @@ describe('formatFee', () => {
     expect(formatFee(315, 'en-US')).toBe('~$10.00 USD');
   });
 });
-
-describe('formatFee legacy no-arg behavior', () => {
-  it('reproduces the old zero-fee output when locale is omitted', () => {
-    expect(formatFee(0)).toBe('Free');
-  });
-
-  it('reproduces the old nonzero-fee output when locale is omitted', () => {
-    expect(formatFee(150)).toBe('NT$150');
-  });
-});

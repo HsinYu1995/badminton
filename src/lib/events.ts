@@ -19,7 +19,7 @@ export type EventListItem = {
   venues: { name: string } | null;
 };
 
-export function formatStartTime(startTime: string, locale: LocaleTag = 'en-US'): string {
+export function formatStartTime(startTime: string, locale: LocaleTag): string {
   const date = new Date(startTime);
   return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
@@ -28,16 +28,7 @@ export function formatStartTime(startTime: string, locale: LocaleTag = 'en-US'):
 // purposes only, not a real currency conversion.
 const NTD_TO_USD_RATE = 31.5;
 
-export function formatFee(fee: number, locale?: LocaleTag): string {
-  // Temporary back-compat shim: `event-card.tsx` still calls `formatFee(event.fee)`
-  // with no locale (until Task 8 migrates it), so omitting `locale` reproduces the
-  // old hardcoded output verbatim rather than falling back to a fixed LocaleTag -
-  // that's why `formatFee(150)` ('NT$150') and `formatFee(150, 'en-US')`
-  // ('~$4.76 USD') deliberately differ. Remove this branch once every caller
-  // passes an explicit locale.
-  if (locale === undefined) {
-    return fee === 0 ? 'Free' : `NT$${fee}`;
-  }
+export function formatFee(fee: number, locale: LocaleTag): string {
   if (fee === 0) return locale === 'zh-TW' ? '免費' : 'Free';
   if (locale === 'zh-TW') return `NT$${fee}`;
   return `~$${(fee / NTD_TO_USD_RATE).toFixed(2)} USD`;
@@ -47,10 +38,12 @@ export function formatFee(fee: number, locale?: LocaleTag): string {
 // anything further as kilometers to one decimal place ("2.3 km away"),
 // matching how Google Maps/most map apps switch units. en-US uses the
 // imperial equivalent (feet under ~0.1mi, else miles to one decimal).
-export function formatDistance(meters: number, locale: LocaleTag = 'zh-TW'): string {
+// zh-TW drops the trailing "away" word entirely, matching how Taiwanese
+// map apps show distance.
+export function formatDistance(meters: number, locale: LocaleTag): string {
   if (locale === 'zh-TW') {
-    if (meters < 1000) return `${Math.round(meters)} m away`;
-    return `${(meters / 1000).toFixed(1)} km away`;
+    if (meters < 1000) return `${Math.round(meters)} 公尺`;
+    return `${(meters / 1000).toFixed(1)} 公里`;
   }
   const miles = meters / 1609.34;
   if (miles < 0.1) return `${Math.round(meters * 3.28084)} ft away`;

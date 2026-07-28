@@ -7,6 +7,10 @@ import { computeSplashProgress } from '@/lib/splash-progress';
 
 SplashScreen.preventAutoHideAsync();
 
+// Hides the native (image-only) splash as soon as fonts are loaded - the
+// app is ready to render *something* at that point - handing off to
+// AppSplashScreen, which stays up with a real loading bar until auth has
+// also resolved.
 function SplashScreenController({ fontsLoaded }: { fontsLoaded: boolean }) {
   if (fontsLoaded) {
     SplashScreen.hide();

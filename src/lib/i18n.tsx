@@ -15,9 +15,6 @@ export function pluralize(count: number, singular: string, plural: string, local
 }
 
 export const en = {
-  'common.free': 'Free',
-  'common.unrated': 'Unrated',
-
   'auth.signIn': 'Sign in',
   'auth.signInWithGoogle': 'Sign in with Google',
   'auth.signInFailed': 'Sign-in failed',
@@ -164,9 +161,6 @@ export const en = {
 export type Translations = typeof en;
 
 export const zhTW: Translations = {
-  'common.free': '免費',
-  'common.unrated': '未評分',
-
   'auth.signIn': '登入',
   'auth.signInWithGoogle': '使用 Google 登入',
   'auth.signInFailed': '登入失敗',

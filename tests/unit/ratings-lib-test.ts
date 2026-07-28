@@ -1,12 +1,12 @@
 import { formatCredit, getCredits, getMyRatingsForEvents, submitRating } from '@/lib/ratings';
 
 it('formats "Unrated" when there is no credit', () => {
-  expect(formatCredit(undefined)).toBe('Unrated');
+  expect(formatCredit(undefined, 'en-US')).toBe('Unrated');
 });
 
 it('formats the average to one decimal place with the ratings count', () => {
-  expect(formatCredit({ credit: 4.5, ratingsCount: 3 })).toBe('★ 4.5 (3)');
-  expect(formatCredit({ credit: 5, ratingsCount: 1 })).toBe('★ 5.0 (1)');
+  expect(formatCredit({ credit: 4.5, ratingsCount: 3 }, 'en-US')).toBe('★ 4.5 (3)');
+  expect(formatCredit({ credit: 5, ratingsCount: 1 }, 'en-US')).toBe('★ 5.0 (1)');
 });
 
 describe('formatCredit locale handling', () => {

@@ -49,7 +49,7 @@ function combineDateAndTimeText(date: Date, timeText: string): Date | null {
 
 // Every rule the Create form enforces before an Event can be inserted,
 // pulled out of the screen so each rule is testable directly - stops at
-// the first failing rule and returns its message, matching the form's
+// the first failing rule and returns its errorKey, matching the form's
 // existing one-error-at-a-time display. `now` defaults to the real clock
 // but is injectable so the "must be in the future" rule is testable
 // without faking global Date state.

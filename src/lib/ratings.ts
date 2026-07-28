@@ -23,7 +23,7 @@ export async function getCredits(supabase: SupabaseClient, userIds: string[]): P
 // leaf component in isolation, so the formatting logic is what's unit
 // tested directly; the component itself is exercised through the screens
 // that render it.
-export function formatCredit(credit: Credit | undefined, locale: LocaleTag = 'en-US'): string {
+export function formatCredit(credit: Credit | undefined, locale: LocaleTag): string {
   if (!credit) return locale === 'zh-TW' ? '未評分' : 'Unrated';
   return `★ ${credit.credit.toFixed(1)} (${credit.ratingsCount})`;
 }
