@@ -9,6 +9,9 @@ export type Venue = {
   id: string;
   name: string;
   address: string;
+  address_zh: string | null;
+  latitude: number;
+  longitude: number;
 };
 
 type VenuePickerProps = {
@@ -26,6 +29,7 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
   const [showNewVenueForm, setShowNewVenueForm] = useState(false);
   const [newVenueName, setNewVenueName] = useState('');
   const [newVenueAddress, setNewVenueAddress] = useState('');
+  const [newVenueAddressZh, setNewVenueAddressZh] = useState('');
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locatingInProgress, setLocatingInProgress] = useState(false);
@@ -35,7 +39,7 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
   useEffect(() => {
     supabase
       .from('venues')
-      .select('id, name, address')
+      .select('id, name, address, address_zh, latitude, longitude')
       .order('name')
       .then(({ data, error }) => {
         if (error) setLoadError(error.message);
@@ -72,10 +76,11 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
         .insert({
           name: newVenueName.trim(),
           address: newVenueAddress.trim(),
+          address_zh: newVenueAddressZh.trim() || null,
           location: `SRID=4326;POINT(${coords.longitude} ${coords.latitude})`,
           created_by: session.user.id,
         })
-        .select('id, name, address')
+        .select('id, name, address, address_zh, latitude, longitude')
         .single();
       if (error) throw error;
       setVenues((prev) => [...prev, data]);
@@ -83,6 +88,7 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
       setShowNewVenueForm(false);
       setNewVenueName('');
       setNewVenueAddress('');
+      setNewVenueAddressZh('');
       setCoords(null);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : t('venuePicker.couldNotSaveVenue'));
@@ -126,6 +132,12 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
             placeholder={t('venuePicker.addressPlaceholder')}
             value={newVenueAddress}
             onChangeText={setNewVenueAddress}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder={t('venuePicker.addressZhPlaceholder')}
+            value={newVenueAddressZh}
+            onChangeText={setNewVenueAddressZh}
           />
           <Pressable style={styles.locationButton} onPress={handleUseCurrentLocation} disabled={locatingInProgress}>
             <Text style={styles.locationButtonText}>
