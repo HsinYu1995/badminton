@@ -4,11 +4,11 @@ import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n';
 
 export default function LoginScreen() {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, signInAsGuest } = useAuth();
   const { t } = useI18n();
   const [error, setError] = useState<string | null>(null);
 
-  async function handlePress() {
+  async function handleGooglePress() {
     setError(null);
     try {
       await signInWithGoogle();
@@ -17,11 +17,23 @@ export default function LoginScreen() {
     }
   }
 
+  async function handleGuestPress() {
+    setError(null);
+    try {
+      await signInAsGuest();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('auth.signInFailed'));
+    }
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{t('auth.signIn')}</Text>
-      <Pressable style={styles.button} onPress={handlePress}>
+      <Pressable style={styles.button} onPress={handleGooglePress}>
         <Text style={styles.buttonText}>{t('auth.signInWithGoogle')}</Text>
+      </Pressable>
+      <Pressable style={styles.guestButton} onPress={handleGuestPress}>
+        <Text style={styles.guestButtonText}>{t('auth.continueAsGuest')}</Text>
       </Pressable>
       {error && <Text style={styles.error}>{error}</Text>}
     </View>
@@ -33,5 +45,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '600' },
   button: { backgroundColor: '#4285F4', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 },
   buttonText: { color: '#fff', fontWeight: '600' },
+  guestButton: { paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 },
+  guestButtonText: { color: '#4285F4', fontWeight: '600' },
   error: { color: 'red' },
 });
