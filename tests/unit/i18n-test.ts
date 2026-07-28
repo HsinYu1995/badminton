@@ -17,13 +17,17 @@ describe('i18n dictionary parity', () => {
 });
 
 describe('bucketLocale', () => {
-  it('buckets TW to zh-TW', () => {
-    expect(bucketLocale('TW')).toBe('zh-TW');
+  it('buckets TW region to zh-TW', () => {
+    expect(bucketLocale('en', 'TW')).toBe('zh-TW');
   });
 
-  it('falls back to en-US for null, undefined, or any other region', () => {
-    expect(bucketLocale(null)).toBe('en-US');
-    expect(bucketLocale(undefined)).toBe('en-US');
-    expect(bucketLocale('US')).toBe('en-US');
+  it('buckets zh language to zh-TW even outside Taiwan', () => {
+    expect(bucketLocale('zh', 'US')).toBe('zh-TW');
+  });
+
+  it('falls back to en-US when neither signal matches', () => {
+    expect(bucketLocale('en', 'US')).toBe('en-US');
+    expect(bucketLocale(null, null)).toBe('en-US');
+    expect(bucketLocale(undefined, undefined)).toBe('en-US');
   });
 });

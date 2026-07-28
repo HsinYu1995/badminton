@@ -3,8 +3,11 @@ import { useLocales } from 'expo-localization';
 
 export type LocaleTag = 'en-US' | 'zh-TW';
 
-export function bucketLocale(regionCode: string | null | undefined): LocaleTag {
-  return regionCode === 'TW' ? 'zh-TW' : 'en-US';
+export function bucketLocale(
+  languageCode: string | null | undefined,
+  regionCode: string | null | undefined
+): LocaleTag {
+  return languageCode === 'zh' || regionCode === 'TW' ? 'zh-TW' : 'en-US';
 }
 
 // Mandarin has no plural form - a caller passes the single Mandarin word as
@@ -176,7 +179,7 @@ export const zhTW: Translations = {
 
   'create.mustBeSignedIn': '您必須登入才能建立活動。',
   'create.couldNotCreate': '無法建立活動。',
-  'create.headerTitle': '🏸 主辦比賽',
+  'create.headerTitle': '🏸 揪一場球',
   'create.subtitle': '填寫詳細資訊，讓球友了解活動內容',
   'create.eventTitleLabel': '活動標題',
   'create.eventTitlePlaceholder': '友誼雙打',
@@ -219,7 +222,7 @@ export const zhTW: Translations = {
   'discover.yourEvent': '您的活動',
   'discover.leaveEvent': '退出活動',
   'discover.cancelRequest': '取消申請',
-  'discover.declined': '已婉拒',
+  'discover.declined': '未獲接受',
   'discover.join': '加入',
   'discover.spotsFilledNotice': '🔔 自您申請後已有 {count} 個空位被填滿',
 
@@ -320,7 +323,7 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const locales = useLocales();
-  const locale = bucketLocale(locales[0]?.regionCode);
+  const locale = bucketLocale(locales[0]?.languageCode, locales[0]?.regionCode);
   const t = (key: keyof Translations, params?: Record<string, string | number>) =>
     interpolate(DICTIONARIES[locale][key], params);
   return <I18nContext.Provider value={{ locale, t }}>{children}</I18nContext.Provider>;
