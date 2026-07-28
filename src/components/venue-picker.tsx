@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { useI18n } from '@/lib/i18n';
+import { composeZhAddress } from '@/lib/venues';
 
 export type Venue = {
   id: string;
@@ -12,7 +13,21 @@ export type Venue = {
   address_zh: string | null;
   latitude: number;
   longitude: number;
+  displayAddress: string;
 };
+
+async function resolveDisplayAddress(venue: Omit<Venue, 'displayAddress'>, locale: 'en-US' | 'zh-TW'): Promise<string> {
+  if (locale !== 'zh-TW') return venue.address;
+  if (venue.address_zh) return venue.address_zh;
+  if (Platform.OS === 'web') return venue.address;
+  try {
+    const results = await Location.reverseGeocodeAsync({ latitude: venue.latitude, longitude: venue.longitude });
+    const composed = results[0] ? composeZhAddress(results[0]) : null;
+    return composed ?? venue.address;
+  } catch {
+    return venue.address;
+  }
+}
 
 type VenuePickerProps = {
   selectedVenueId: string | null;
@@ -21,7 +36,7 @@ type VenuePickerProps = {
 
 export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
   const { session } = useAuth();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [venues, setVenues] = useState<Venue[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -41,12 +56,20 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
       .from('venues')
       .select('id, name, address, address_zh, latitude, longitude')
       .order('name')
-      .then(({ data, error }) => {
-        if (error) setLoadError(error.message);
-        else setVenues(data ?? []);
+      .then(async ({ data, error }) => {
+        if (error) {
+          setLoadError(error.message);
+          setLoading(false);
+          return;
+        }
+        const rows = data ?? [];
+        const withDisplayAddress = await Promise.all(
+          rows.map(async (venue) => ({ ...venue, displayAddress: await resolveDisplayAddress(venue, locale) }))
+        );
+        setVenues(withDisplayAddress);
         setLoading(false);
       });
-  }, []);
+  }, [locale]);
 
   async function handleUseCurrentLocation() {
     setLocationError(null);
@@ -83,8 +106,9 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
         .select('id, name, address, address_zh, latitude, longitude')
         .single();
       if (error) throw error;
-      setVenues((prev) => [...prev, data]);
-      onSelect(data);
+      const venueWithDisplayAddress = { ...data, displayAddress: await resolveDisplayAddress(data, locale) };
+      setVenues((prev) => [...prev, venueWithDisplayAddress]);
+      onSelect(venueWithDisplayAddress);
       setShowNewVenueForm(false);
       setNewVenueName('');
       setNewVenueAddress('');
@@ -109,7 +133,7 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
           onPress={() => onSelect(venue)}
         >
           <Text style={styles.venueName}>{venue.name}</Text>
-          <Text style={styles.venueAddress}>{venue.address}</Text>
+          <Text style={styles.venueAddress}>{venue.displayAddress}</Text>
         </Pressable>
       ))}
 
