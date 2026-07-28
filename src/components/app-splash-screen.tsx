@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
+import { useI18n } from '@/lib/i18n';
 
 type AppSplashScreenProps = {
   progress: number;
@@ -12,13 +13,14 @@ type AppSplashScreenProps = {
 // 🏸 badge reuses the same glyph as the tab icon and every empty state
 // elsewhere in the app rather than a new binary image asset.
 export function AppSplashScreen({ progress }: AppSplashScreenProps) {
+  const { t } = useI18n();
   return (
     <View style={styles.screen} testID="app-splash-screen">
       <View style={styles.badge}>
         <Text style={styles.badgeEmoji}>🏸</Text>
       </View>
-      <Text style={styles.title}>Badminton</Text>
-      <Text style={styles.subtitle}>Finding your next game...</Text>
+      <Text style={styles.title}>{t('splash.title')}</Text>
+      <Text style={styles.subtitle}>{t('splash.subtitle')}</Text>
       <View style={styles.track} testID="app-splash-progress-track">
         <View style={[styles.fill, { width: `${progress}%` }]} testID="app-splash-progress-fill" />
       </View>
