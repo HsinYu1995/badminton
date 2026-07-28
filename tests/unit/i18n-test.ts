@@ -14,6 +14,25 @@ describe('i18n dictionary parity', () => {
       }
     }
   });
+
+  it('has the new guest sign-in keys in both locales', () => {
+    const keys = [
+      'auth.continueAsGuest',
+      'profile.guestBadge',
+      'guestSkillPick.headerTitle',
+      'guestSkillPick.title',
+      'guestSkillPick.subtitle',
+      'guestSkillPick.continue',
+      'guestSkillPick.saving',
+      'guestSkillPick.couldNotSave',
+    ];
+    const enKeys = Object.keys(en);
+    const zhTWKeys = Object.keys(zhTW);
+    for (const key of keys) {
+      expect(enKeys).toContain(key);
+      expect(zhTWKeys).toContain(key);
+    }
+  });
 });
 
 describe('bucketLocale', () => {
