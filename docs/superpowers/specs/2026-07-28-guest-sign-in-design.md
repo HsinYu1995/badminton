@@ -130,8 +130,12 @@ distinguish anonymity and is left completely unchanged; a guest's own
 client could technically call the same update twice. Nothing depends on
 that being prevented.
 
-`(tabs)/_layout.tsx` hides the Profile tab entirely for a guest session
-(`session?.user.is_anonymous`). The exact Expo Router SDK 57 mechanism for
+`(tabs)/_layout.tsx` hides both the Profile **and** Create tabs entirely
+for a guest session (`session?.user.is_anonymous`) - Create is included
+because the RLS enforcement above blocks a guest's event insert outright,
+so leaving Create visible would let a guest fill out the whole form only
+to hit a raw RLS-denied error on submit. A guest's tab bar shows Discover
+only. The exact Expo Router SDK 57 mechanism for
 conditionally omitting a `Tabs.Screen` (`href: null` vs. conditionally not
 rendering the JSX element vs. something else version-specific) is pinned
 down precisely at plan-writing time against the exact versioned docs, per

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let a player join a game without a Google account, via Supabase anonymous auth, limited to join/leave plus one mandatory one-time skill-range pick — no organizing, no rating, no full profile editing, no Profile tab.
+**Goal:** Let a player join a game without a Google account, via Supabase anonymous auth, limited to join/leave plus one mandatory one-time skill-range pick — no organizing, no rating, no full profile editing, no Profile or Create tab.
 
-**Architecture:** Supabase's built-in `signInAnonymously()` produces a session identical in shape to a Google sign-in session, distinguished only by `session.user.is_anonymous`. A new `profiles.is_anonymous` column (mirrored from `auth.users.is_anonymous` by the existing `handle_new_user` trigger) is how the rest of the app tells a guest apart from a real account without touching `auth.users` directly. `AuthContext` gains a `needsGuestSkillPick` field driving a new mandatory onboarding screen; three RLS policies gain an anonymity check via the `is_anonymous` JWT claim; the Profile tab is hidden for guest sessions via `Tabs.Protected`.
+**Architecture:** Supabase's built-in `signInAnonymously()` produces a session identical in shape to a Google sign-in session, distinguished only by `session.user.is_anonymous`. A new `profiles.is_anonymous` column (mirrored from `auth.users.is_anonymous` by the existing `handle_new_user` trigger) is how the rest of the app tells a guest apart from a real account without touching `auth.users` directly. `AuthContext` gains a `needsGuestSkillPick` field driving a new mandatory onboarding screen; three RLS policies gain an anonymity check via the `is_anonymous` JWT claim; the Profile and Create tabs are both hidden for guest sessions via `Tabs.Protected` (Create is hidden too since RLS blocks a guest's event insert outright - no point showing a form that can only fail).
 
 **Tech Stack:** React Native / Expo SDK 57, expo-router, TypeScript, Jest (`jest-expo` preset), Supabase (Postgres + GoTrue auth, local dev via Supabase CLI).
 
@@ -810,7 +810,7 @@ git commit -m "feat(auth): mandatory one-time skill-range gate for guest session
 
 ---
 
-### Task 6: Hide the Profile tab for guest sessions
+### Task 6: Hide the Profile and Create tabs for guest sessions
 
 **Files:**
 - Modify: `src/app/(tabs)/_layout.tsx`
@@ -852,9 +852,10 @@ jest.mock('expo-location', () => ({
 }));
 
 describe('Tab bar for a guest session', () => {
-  it('shows Discover and Create but hides Profile', async () => {
+  it('shows only Discover - hides both Create and Profile', async () => {
     await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)' });
     expect(screen.getAllByText('Discover').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Create')).toBeNull();
     expect(screen.queryByText('Profile')).toBeNull();
   });
 });
@@ -863,7 +864,7 @@ describe('Tab bar for a guest session', () => {
 - [ ] **Step 2: Run it to confirm it fails**
 
 Run: `npx jest tests/unit/tabs-guest-test.tsx`
-Expected: FAIL — `Profile` still renders in the tab bar for every session today, guest or not.
+Expected: FAIL — `Create` and `Profile` both still render in the tab bar for every session today, guest or not.
 
 - [ ] **Step 3: Update `src/app/(tabs)/_layout.tsx`**
 
@@ -899,11 +900,11 @@ export default function TabsLayout() {
         name="index"
         options={{ title: t('tabs.discover'), tabBarIcon: ({ focused }) => <TabIcon emoji="🔎" focused={focused} /> }}
       />
-      <Tabs.Screen
-        name="create"
-        options={{ title: t('tabs.create'), tabBarIcon: ({ focused }) => <TabIcon emoji="🏸" focused={focused} /> }}
-      />
       <Tabs.Protected guard={!isGuest}>
+        <Tabs.Screen
+          name="create"
+          options={{ title: t('tabs.create'), tabBarIcon: ({ focused }) => <TabIcon emoji="🏸" focused={focused} /> }}
+        />
         <Tabs.Screen
           name="profile"
           options={{ title: t('tabs.profile'), tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} /> }}
@@ -922,7 +923,7 @@ Expected: PASS
 - [ ] **Step 5: Confirm the existing zh-TW tab-titles test still passes unchanged**
 
 Run: `npx jest tests/unit/tabs-titles-zh-test.tsx`
-Expected: PASS — that test's mocked session (`{ user: { id: 'fake-user-id' } }`) has no `is_anonymous` field, so `isGuest` is `false` and every tab (including Profile) renders exactly as before.
+Expected: PASS — that test's mocked session (`{ user: { id: 'fake-user-id' } }`) has no `is_anonymous` field, so `isGuest` is `false` and every tab (including Create and Profile) renders exactly as before.
 
 - [ ] **Step 6: Run the full suite**
 
@@ -933,7 +934,7 @@ Expected: PASS, zero failures.
 
 ```bash
 git add src/app/\(tabs\)/_layout.tsx tests/unit/tabs-guest-test.tsx
-git commit -m "feat(auth): hide the Profile tab for guest sessions"
+git commit -m "feat(auth): hide the Profile and Create tabs for guest sessions"
 ```
 
 ---
@@ -1486,10 +1487,10 @@ If nothing needed fixing, skip this step — there is nothing to commit.
 
 ## Self-Review
 
-**Spec coverage:** Enabling guest sign-in (config flip, `signInAsGuest`, login button) — Tasks 1, 2, 4. Display-name trigger fix + `is_anonymous` tracking — Task 1. Mandatory one-time skill-range gate (including the concrete gating mechanism the spec explicitly deferred to plan time) — Tasks 2, 5. Hidden Profile tab (`Tabs.Protected`, the exact mechanism the spec deferred, cross-checked against this app's own already-working `Stack.Protected` plus the official docs) — Task 6. RLS scope enforcement (events/venues blocked, ratings rater-side blocked, ratee-side/`profiles_update_own`/chat explicitly left untouched and asserted as such) — Task 7. Guest badge — Task 8. Every bullet in the spec's Testing section has a concrete task: migration/trigger integration test (Task 1), RLS integration test (Task 7), onboarding-gate test (both the real-`AuthProvider` logic in Task 2 and the `_layout.tsx` wiring in Task 5), guest-badge test (Task 8). Out-of-scope items (account upgrade, cut-down Profile tab) are correctly absent from the task list.
+**Spec coverage:** Enabling guest sign-in (config flip, `signInAsGuest`, login button) — Tasks 1, 2, 4. Display-name trigger fix + `is_anonymous` tracking — Task 1. Mandatory one-time skill-range gate (including the concrete gating mechanism the spec explicitly deferred to plan time) — Tasks 2, 5. Hidden Profile and Create tabs (`Tabs.Protected`, the exact mechanism the spec deferred, cross-checked against this app's own already-working `Stack.Protected` plus the official docs) — Task 6. RLS scope enforcement (events/venues blocked, ratings rater-side blocked, ratee-side/`profiles_update_own`/chat explicitly left untouched and asserted as such) — Task 7. Guest badge — Task 8. Every bullet in the spec's Testing section has a concrete task: migration/trigger integration test (Task 1), RLS integration test (Task 7), onboarding-gate test (both the real-`AuthProvider` logic in Task 2 and the `_layout.tsx` wiring in Task 5), guest-badge test (Task 8). Out-of-scope items (account upgrade, cut-down Profile tab) are correctly absent from the task list.
 
 **Placeholder scan:** grepped the full plan for TBD/TODO/"implement later"/"similar to Task N"/"add appropriate error handling" — none found. Every step has real, complete code or an exact command.
 
 **Type consistency:** `AuthContextValue`'s three new fields (`needsGuestSkillPick: boolean | null`, `signInAsGuest: () => Promise<void>`, `markGuestSkillPicked: () => void`) are defined once in Task 2 and read with matching names/types in every later task (`login.tsx` Task 4, `_layout.tsx` and `guest-skill.tsx` Task 5) — no renamed field anywhere. `Attendee.profiles`'s `is_anonymous: boolean` (Task 8) matches the embedded-select shape it's populated from and the `PersonRow`'s `isGuest?: boolean` prop it feeds. The RLS clause `not coalesce((auth.jwt()->>'is_anonymous')::boolean, false)` is copied verbatim across all three altered policies in Task 7. Confirmed a real gap during self-review — Task 2's new `AuthProvider` logic would otherwise never be exercised by any test in this plan (every existing test mocks `@/lib/auth-context` away) — and fixed it by adding a dedicated test in Task 2 that renders the real `AuthProvider` against a mocked `@/lib/supabase`.
 
-**Note for the controller/reviewer (not a plan defect, a design observation):** the spec explicitly scoped hiding only the Profile tab for guests; it says nothing about the Create tab, even though Task 7's RLS blocks a guest's event-insert. A guest can still open Create, fill out the form, and hit a raw RLS-denied error on submit (surfacing as the existing generic `create.couldNotCreate` message) rather than never seeing that option at all. This plan intentionally does not expand scope to hide the Create tab too, since the approved spec didn't call for it — flagging it here in case that's worth a follow-up decision.
+**Resolved during review:** this plan's first draft flagged that the original spec only scoped hiding the Profile tab, leaving Create visible for a guest to fill out and hit a raw RLS-denied error on submit. The controller took this to the user, who decided to hide Create too, matching Profile - the design spec and Task 6 above were both updated accordingly before execution. A guest's tab bar shows Discover only.
