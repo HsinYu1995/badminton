@@ -125,8 +125,10 @@ export default function DiscoverScreen() {
         .from('event_participants')
         .insert({ event_id: event.id, user_id: session.user.id, status: 'pending' });
       if (joinErr) throw joinErr;
+      // A pending request doesn't occupy a spot until the organizer accepts
+      // it - see ACTIVE_PARTICIPANT_STATUSES - so the player count doesn't
+      // move here.
       setMyRequests((prev) => ({ ...prev, [event.id]: 'pending' }));
-      setParticipantCounts((prev) => ({ ...prev, [event.id]: (prev[event.id] ?? 1) + 1 }));
     } catch (err) {
       setJoinError(err instanceof Error ? err.message : 'Could not join event.');
     } finally {
@@ -138,6 +140,7 @@ export default function DiscoverScreen() {
     if (!session) return;
     setCancelError(null);
     setCancelingEventId(event.id);
+    const wasAccepted = myRequests[event.id] === 'accepted';
     try {
       const { error: cancelErr } = await supabase
         .from('event_participants')
@@ -153,8 +156,12 @@ export default function DiscoverScreen() {
         delete next[event.id];
         return next;
       });
-      // Floor at 1, not 0 - the organizer is always still there.
-      setParticipantCounts((prev) => ({ ...prev, [event.id]: Math.max((prev[event.id] ?? 1) - 1, 1) }));
+      // A still-pending request was never counted, so cancelling it doesn't
+      // change the count. Only losing an accepted spot frees one up - floor
+      // at 1, not 0, since the organizer is always still there.
+      if (wasAccepted) {
+        setParticipantCounts((prev) => ({ ...prev, [event.id]: Math.max((prev[event.id] ?? 1) - 1, 1) }));
+      }
     } catch (err) {
       setCancelError(err instanceof Error ? err.message : 'Could not cancel request.');
     } finally {
@@ -236,7 +243,12 @@ export default function DiscoverScreen() {
                       loading={cancelingEventId === event.id}
                     />
                   ) : requestStatus === 'declined' ? (
-                    <ActionButton label="Withdrawn" onPress={() => {}} variant="muted" disabled />
+                    <ActionButton
+                      label="Request again"
+                      onPress={() => handleCancelRequest(event)}
+                      variant="outline"
+                      loading={cancelingEventId === event.id}
+                    />
                   ) : (
                     <ActionButton
                       label="Join"

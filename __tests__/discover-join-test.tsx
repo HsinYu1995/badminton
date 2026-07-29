@@ -81,7 +81,7 @@ it(
 
     expect(await screen.findByText('Cancel request')).toBeTruthy();
     expect(screen.queryByText('Join')).toBeNull();
-    expect(screen.getByText('2/8 players')).toBeTruthy();
+    expect(screen.getByText('1/8 players')).toBeTruthy();
 
     await fireEvent.press(screen.getByText('Cancel request'));
 

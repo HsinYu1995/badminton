@@ -49,6 +49,11 @@ const rosterRows = [
 ];
 
 const mockLeaveEq = jest.fn(() => Promise.resolve({ error: null }));
+const mockAcceptEq2 = jest.fn(() => ({ select: () => Promise.resolve({ data: [{ user_id: 'participant-1' }], error: null }) }));
+const mockAcceptEq1 = jest.fn((_column: string, _value: string) => ({ eq: mockAcceptEq2 }));
+const mockParticipantUpdate = jest.fn(() => ({
+  eq: mockAcceptEq1,
+}));
 
 jest.mock('@/lib/auth-context', () => ({
   AuthProvider: ({ children }: { children: unknown }) => children,
@@ -92,14 +97,12 @@ jest.mock('@/lib/supabase', () => ({
             in: () => ({
               in: () =>
                 Promise.resolve({
-                  data: [
-                    { event_id: organizedEvent.id, status: 'pending' },
-                    { event_id: attendingEvent.id, status: 'accepted' },
-                  ],
+                  data: [{ event_id: attendingEvent.id, status: 'accepted' }],
                   error: null,
                 }),
             }),
           }),
+          update: mockParticipantUpdate,
           delete: () => ({ eq: () => ({ eq: mockLeaveEq }) }),
         };
       }
@@ -129,21 +132,56 @@ it(
     expect(screen.getByText('LINE: coachwu')).toBeTruthy();
 
     // My events: attendee roster
-    expect(await screen.findByText('👥 Players (1)')).toBeTruthy();
+    expect(await screen.findByText('👥 Requests (1)')).toBeTruthy();
     expect(screen.getByText('Newbie Player')).toBeTruthy();
     expect(screen.getByText('Pending')).toBeTruthy();
     // "Novice" also appears as a skill chip in "My profile" - two matches.
     expect(screen.getAllByText('Novice')).toHaveLength(2);
     expect(screen.getByText('090-1234')).toBeTruthy();
 
-    // Headcounts include the organizer (1 + 1 active participant each)
-    expect(screen.getAllByText('2/8 players')).toHaveLength(2);
+    // organizedEvent's only participant is still pending (not counted yet):
+    // organizer (1) + 0 accepted = 1. attendingEvent's participant is
+    // accepted: organizer (1) + 1 accepted = 2.
+    expect(screen.getByText('1/8 players')).toBeTruthy();
+    expect(screen.getByText('2/8 players')).toBeTruthy();
 
     await fireEvent.press(screen.getByText('Leave event'));
 
     await waitFor(() => expect(mockLeaveEq).toHaveBeenCalledTimes(1));
     expect(screen.queryByText(attendingEvent.title)).toBeNull();
     expect(screen.queryByText('🧑 Organized by Coach Wu')).toBeNull();
+  },
+  15000
+);
+
+it(
+  'lets the organizer accept a pending request, updating the roster and the player count',
+  async () => {
+    await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)/profile' });
+
+    await screen.findByText(organizedEvent.title);
+    expect(await screen.findByText('👥 Requests (1)')).toBeTruthy();
+    expect(screen.getByText('Pending')).toBeTruthy();
+    expect(screen.getByText('1/8 players')).toBeTruthy();
+
+    await fireEvent.press(screen.getByText('Accept'));
+
+    await waitFor(() => expect(mockParticipantUpdate).toHaveBeenCalledTimes(1));
+    expect(mockParticipantUpdate).toHaveBeenCalledWith({ status: 'accepted' });
+    await waitFor(() => expect(mockAcceptEq1).toHaveBeenCalledTimes(1));
+    expect(mockAcceptEq1).toHaveBeenCalledWith('event_id', organizedEvent.id);
+    await waitFor(() => expect(mockAcceptEq2).toHaveBeenCalledTimes(1));
+    expect(mockAcceptEq2).toHaveBeenCalledWith('user_id', 'participant-1');
+
+    expect(await screen.findByText('Accepted')).toBeTruthy();
+    expect(screen.queryByText('Pending')).toBeNull();
+    expect(screen.queryByText('Accept')).toBeNull();
+    expect(screen.queryByText('Decline')).toBeNull();
+    // organizedEvent's count bumped from 1/8 to 2/8 - which now coincides
+    // with attendingEvent's already-accepted participant (also 2/8), so two
+    // elements match instead of one.
+    expect(screen.queryByText('1/8 players')).toBeNull();
+    expect(screen.getAllByText('2/8 players')).toHaveLength(2);
   },
   15000
 );

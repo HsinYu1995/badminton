@@ -145,6 +145,13 @@ export default function ProfileScreen() {
     }
   }
 
+  // Bumps one event's displayed player count by 1 - called when the
+  // organizer accepts a pending request, the one moment a request starts
+  // counting (see ACTIVE_PARTICIPANT_STATUSES in src/lib/events.ts).
+  function handleParticipantAccepted(eventId: string) {
+    setParticipantCounts((prev) => ({ ...prev, [eventId]: (prev[eventId] ?? 1) + 1 }));
+  }
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.topRow}>
@@ -300,7 +307,12 @@ export default function ProfileScreen() {
                   }
                 />
               </Pressable>
-              <AttendeeRoster eventId={event.id} organizerId={session?.user.id ?? ''} canRate={isPastEvent(event)} />
+              <AttendeeRoster
+                eventId={event.id}
+                organizerId={session?.user.id ?? ''}
+                canRate={isPastEvent(event)}
+                onAccept={handleParticipantAccepted}
+              />
             </View>
           ))}
       </View>
@@ -319,6 +331,7 @@ function PersonRow({
   credit,
   statusLabel,
   statusTone,
+  decision,
   rating,
 }: {
   name: string;
@@ -326,7 +339,8 @@ function PersonRow({
   contact?: string | null;
   credit: Credit | undefined;
   statusLabel?: string;
-  statusTone?: 'green' | 'neutral';
+  statusTone?: 'green' | 'neutral' | 'danger';
+  decision?: { onAccept: () => void; onDecline: () => void; loading?: boolean };
   rating?: { value: number; onChange: (score: number) => void; disabled?: boolean };
 }) {
   return (
@@ -338,6 +352,12 @@ function PersonRow({
         <CreditPill credit={credit} />
         {contact && <Pill label={contact} tone="neutral" />}
       </View>
+      {decision && (
+        <View style={styles.decisionRow}>
+          <ActionButton label="Accept" onPress={decision.onAccept} loading={decision.loading} />
+          <ActionButton label="Decline" onPress={decision.onDecline} variant="danger" loading={decision.loading} />
+        </View>
+      )}
       {rating && <StarRating value={rating.value} onChange={rating.onChange} disabled={rating.disabled} />}
     </View>
   );
@@ -468,12 +488,24 @@ function FellowParticipants({ eventId, currentUserId, canRate }: { eventId: stri
 // ProfileScreen's own state - each organized event's attendee list is
 // independent of the rest of the screen's load/save cycle, and there's no
 // other consumer that would benefit from lifting this fetch up.
-function AttendeeRoster({ eventId, organizerId, canRate }: { eventId: string; organizerId: string; canRate: boolean }) {
+function AttendeeRoster({
+  eventId,
+  organizerId,
+  canRate,
+  onAccept,
+}: {
+  eventId: string;
+  organizerId: string;
+  canRate: boolean;
+  onAccept: (eventId: string) => void;
+}) {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [credits, setCredits] = useState<Record<string, Credit>>({});
   const [myRatings, setMyRatings] = useState<Record<string, number>>({});
   const [loadingRoster, setLoadingRoster] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [decidingUserId, setDecidingUserId] = useState<string | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -512,10 +544,32 @@ function AttendeeRoster({ eventId, organizerId, canRate }: { eventId: string; or
     }
   }
 
+  async function handleDecide(userId: string, status: 'accepted' | 'declined') {
+    setDecisionError(null);
+    setDecidingUserId(userId);
+    try {
+      const { data: updated, error: decideErr } = await supabase
+        .from('event_participants')
+        .update({ status })
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .select('user_id');
+      if (decideErr) throw decideErr;
+      if (!updated?.length) throw new Error('This request is no longer available.');
+      setAttendees((prev) => prev.map((row) => (row.user_id === userId ? { ...row, status } : row)));
+      if (status === 'accepted') onAccept(eventId);
+    } catch (err) {
+      setDecisionError(err instanceof Error ? err.message : 'Could not update request.');
+    } finally {
+      setDecidingUserId(null);
+    }
+  }
+
   return (
     <View style={styles.rosterCard}>
-      <Text style={styles.rosterTitle}>👥 Players ({attendees.length})</Text>
+      <Text style={styles.rosterTitle}>👥 Requests ({attendees.length})</Text>
       {error && <Text style={styles.error}>{error}</Text>}
+      {decisionError && <Text style={styles.error}>{decisionError}</Text>}
       {attendees.map((attendee) => (
         <PersonRow
           key={attendee.user_id}
@@ -523,8 +577,19 @@ function AttendeeRoster({ eventId, organizerId, canRate }: { eventId: string; or
           skillLevel={attendee.profiles?.skill_level ?? null}
           contact={attendee.profiles?.contact_info}
           credit={credits[attendee.user_id]}
-          statusLabel={attendee.status === 'accepted' ? 'Accepted' : 'Pending'}
-          statusTone={attendee.status === 'accepted' ? 'green' : 'neutral'}
+          statusLabel={
+            attendee.status === 'accepted' ? 'Accepted' : attendee.status === 'declined' ? 'Declined' : 'Pending'
+          }
+          statusTone={attendee.status === 'accepted' ? 'green' : attendee.status === 'declined' ? 'danger' : 'neutral'}
+          decision={
+            attendee.status === 'pending'
+              ? {
+                  onAccept: () => handleDecide(attendee.user_id, 'accepted'),
+                  onDecline: () => handleDecide(attendee.user_id, 'declined'),
+                  loading: decidingUserId === attendee.user_id,
+                }
+              : undefined
+          }
           rating={
             canRate && attendee.status === 'accepted'
               ? { value: myRatings[attendee.user_id] ?? 0, onChange: (score) => handleRate(attendee.user_id, score) }
@@ -602,4 +667,5 @@ const styles = StyleSheet.create({
   rosterTitle: { fontFamily: Font.display, fontSize: 13, color: Court.ink },
   rosterRow: { gap: 4 },
   rosterName: { fontFamily: Font.display, fontSize: 13, color: Court.ink },
+  decisionRow: { flexDirection: 'row', gap: Space.sm, marginTop: Space.xs },
 });
