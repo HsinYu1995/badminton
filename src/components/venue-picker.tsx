@@ -16,12 +16,36 @@ export type Venue = {
   displayAddress: string;
 };
 
-async function resolveDisplayAddress(venue: Omit<Venue, 'displayAddress'>, locale: 'en-US' | 'zh-TW'): Promise<string> {
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      }
+    );
+  });
+}
+
+async function resolveDisplayAddress(
+  venue: Omit<Venue, 'displayAddress'>,
+  locale: 'en-US' | 'zh-TW',
+  hasLocationPermission: boolean
+): Promise<string> {
   if (locale !== 'zh-TW') return venue.address;
   if (venue.address_zh) return venue.address_zh;
-  if (Platform.OS === 'web') return venue.address;
+  if (Platform.OS === 'web' || !hasLocationPermission) return venue.address;
   try {
-    const results = await Location.reverseGeocodeAsync({ latitude: venue.latitude, longitude: venue.longitude });
+    const results = await withTimeout(
+      Location.reverseGeocodeAsync({ latitude: venue.latitude, longitude: venue.longitude }),
+      5000,
+      []
+    );
     const composed = results[0] ? composeZhAddress(results[0]) : null;
     return composed ?? venue.address;
   } catch {
@@ -52,23 +76,31 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     supabase
       .from('venues')
       .select('id, name, address, address_zh, latitude, longitude')
       .order('name')
       .then(async ({ data, error }) => {
+        if (cancelled) return;
         if (error) {
           setLoadError(error.message);
           setLoading(false);
           return;
         }
         const rows = data ?? [];
+        const { granted } = await Location.getForegroundPermissionsAsync();
+        if (cancelled) return;
         const withDisplayAddress = await Promise.all(
-          rows.map(async (venue) => ({ ...venue, displayAddress: await resolveDisplayAddress(venue, locale) }))
+          rows.map(async (venue) => ({ ...venue, displayAddress: await resolveDisplayAddress(venue, locale, granted) }))
         );
+        if (cancelled) return;
         setVenues(withDisplayAddress);
         setLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [locale]);
 
   async function handleUseCurrentLocation() {
@@ -106,7 +138,7 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
         .select('id, name, address, address_zh, latitude, longitude')
         .single();
       if (error) throw error;
-      const venueWithDisplayAddress = { ...data, displayAddress: await resolveDisplayAddress(data, locale) };
+      const venueWithDisplayAddress = { ...data, displayAddress: await resolveDisplayAddress(data, locale, true) };
       setVenues((prev) => [...prev, venueWithDisplayAddress]);
       onSelect(venueWithDisplayAddress);
       setShowNewVenueForm(false);
@@ -160,6 +192,7 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
           <TextInput
             style={styles.input}
             placeholder={t('venuePicker.addressZhPlaceholder')}
+            accessibilityLabel={t('venuePicker.addressZhLabel')}
             value={newVenueAddressZh}
             onChangeText={setNewVenueAddressZh}
           />

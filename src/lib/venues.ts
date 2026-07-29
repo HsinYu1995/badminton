@@ -12,7 +12,8 @@ export type ReverseGeocodedAddress = {
 // Returns null when every part is null (nothing to show).
 export function composeZhAddress(parts: ReverseGeocodedAddress): string | null {
   const ordered = [parts.region, parts.city, parts.district, parts.street, parts.streetNumber];
-  const present = ordered.filter((part): part is string => part != null);
-  if (present.length === 0) return null;
-  return present.join('');
+  const present = ordered.filter((part): part is string => part != null && part.trim() !== '');
+  const deduped = present.filter((part, i) => part !== present[i - 1]);
+  if (deduped.length === 0) return null;
+  return deduped.join('');
 }

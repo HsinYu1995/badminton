@@ -6,6 +6,7 @@ jest.mock('expo-localization', () => ({
 }));
 
 jest.mock('expo-location', () => ({
+  getForegroundPermissionsAsync: () => Promise.resolve({ granted: true }),
   reverseGeocodeAsync: () =>
     Promise.resolve([{ region: '台北市', city: '大安區', district: null, street: '和平東路二段', streetNumber: '106號' }]),
 }));

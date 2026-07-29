@@ -6,7 +6,10 @@ jest.mock('expo-localization', () => ({
 }));
 
 const mockReverseGeocodeAsync = jest.fn();
-jest.mock('expo-location', () => ({ reverseGeocodeAsync: mockReverseGeocodeAsync }));
+jest.mock('expo-location', () => ({
+  getForegroundPermissionsAsync: () => Promise.resolve({ granted: true }),
+  reverseGeocodeAsync: mockReverseGeocodeAsync,
+}));
 
 const FAKE_SESSION = { user: { id: 'fake-user-id' } };
 

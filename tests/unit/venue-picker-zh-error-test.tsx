@@ -5,8 +5,10 @@ jest.mock('expo-localization', () => ({
   useLocales: () => [{ languageTag: 'zh-TW', languageCode: 'zh', regionCode: 'TW', textDirection: 'ltr' }],
 }));
 
+const mockReverseGeocodeAsync = jest.fn(() => Promise.reject(new Error('geocoding unavailable')));
 jest.mock('expo-location', () => ({
-  reverseGeocodeAsync: () => Promise.reject(new Error('geocoding unavailable')),
+  getForegroundPermissionsAsync: () => Promise.resolve({ granted: true }),
+  reverseGeocodeAsync: mockReverseGeocodeAsync,
 }));
 
 const FAKE_SESSION = { user: { id: 'fake-user-id' } };
@@ -34,5 +36,6 @@ describe('VenuePicker under zh-TW locale when geocoding fails', () => {
   it('falls back to the original address', async () => {
     await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)/create' });
     await screen.findByText('123 Fake Rd');
+    expect(mockReverseGeocodeAsync).toHaveBeenCalled();
   });
 });

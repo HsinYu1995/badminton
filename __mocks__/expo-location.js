@@ -3,6 +3,10 @@ function requestForegroundPermissionsAsync() {
   return Promise.resolve({ granted: true });
 }
 
+function getForegroundPermissionsAsync() {
+  return Promise.resolve({ granted: true });
+}
+
 function getCurrentPositionAsync() {
   return Promise.resolve({ coords: { latitude: 25.033, longitude: 121.5654 } });
 }
@@ -15,6 +19,10 @@ function reverseGeocodeAsync() {
 
 module.exports = {
   requestForegroundPermissionsAsync,
+  getForegroundPermissionsAsync,
   getCurrentPositionAsync,
-  reverseGeocodeAsync,
+  // Wrapped in jest.fn() (rather than exported as a plain function like its
+  // siblings above) so tests can assert on call counts, e.g. proving the
+  // en-US path never geocodes (tests/unit/create-submit-test.tsx).
+  reverseGeocodeAsync: jest.fn(reverseGeocodeAsync),
 };
