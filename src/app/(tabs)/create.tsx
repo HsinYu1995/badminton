@@ -1,18 +1,17 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Text, TextInput, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { DateTimePicker } from '@expo/ui/community/datetime-picker';
-import { Picker } from '@expo/ui/community/picker';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
+import { type SkillBandId } from '@/lib/skill-bands';
+import { validateEventDraft } from '@/lib/event-draft';
 import { VenuePicker, type Venue } from '@/components/venue-picker';
-
-function combineDateAndTime(date: Date, time: Date): Date {
-  const combined = new Date(date);
-  combined.setHours(time.getHours(), time.getMinutes(), 0, 0);
-  return combined;
-}
+import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
+import { ActionButton } from '@/components/action-button';
+import { SkillBandSelector } from '@/components/skill-band-selector';
+import { SectionDivider } from '@/components/section-divider';
+import { FieldCard } from '@/components/field-card';
 
 export default function CreateEventScreen() {
   const { session } = useAuth();
@@ -24,7 +23,7 @@ export default function CreateEventScreen() {
   const [headcountText, setHeadcountText] = useState('8');
   const [feeText, setFeeText] = useState('0');
   const [date, setDate] = useState(new Date());
-  const [startTime, setStartTime] = useState(new Date());
+  const [startTimeText, setStartTimeText] = useState('');
   const [durationMinutesText, setDurationMinutesText] = useState('90');
   const [fromBandId, setFromBandId] = useState<SkillBandId>('novice');
   const [toBandId, setToBandId] = useState<SkillBandId>('professional');
@@ -38,55 +37,37 @@ export default function CreateEventScreen() {
       setSubmitError('You must be signed in to create an event.');
       return;
     }
-    if (!title.trim()) {
-      setSubmitError('Title is required.');
+
+    const result = validateEventDraft({
+      title,
+      venueId: venue?.id ?? null,
+      headcountText,
+      feeText,
+      durationMinutesText,
+      fromBandId,
+      toBandId,
+      date,
+      startTimeText,
+    });
+    if (!result.ok) {
+      setSubmitError(result.error);
       return;
     }
-    if (!venue) {
-      setSubmitError('Please select or add a venue.');
-      return;
-    }
-    const headcountMax = parseInt(headcountText, 10);
-    if (!Number.isInteger(headcountMax) || headcountMax <= 0) {
-      setSubmitError('Number of people must be a positive whole number.');
-      return;
-    }
-    const fee = feeText.trim() === '' ? 0 : Number(feeText);
-    if (!Number.isInteger(fee) || fee < 0) {
-      setSubmitError('Fee must be zero or a positive whole number.');
-      return;
-    }
-    const durationMinutes = parseInt(durationMinutesText, 10);
-    if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
-      setSubmitError('Duration must be a positive number of minutes.');
-      return;
-    }
-    const fromIndex = SKILL_BANDS.findIndex((band) => band.id === fromBandId);
-    const toIndex = SKILL_BANDS.findIndex((band) => band.id === toBandId);
-    if (fromIndex > toIndex) {
-      setSubmitError('Skill range "from" must not be above "to".');
-      return;
-    }
-    const startDateTime = combineDateAndTime(date, startTime);
-    if (startDateTime.getTime() <= Date.now()) {
-      setSubmitError('Start time must be in the future.');
-      return;
-    }
-    const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60_000);
+    const event = result.event;
 
     setSubmitting(true);
     try {
       const { error } = await supabase.from('events').insert({
         organizer_id: session.user.id,
-        venue_id: venue.id,
-        title: title.trim(),
+        venue_id: event.venueId,
+        title: event.title,
         description: description.trim() || null,
-        fee,
-        start_time: startDateTime.toISOString(),
-        end_time: endDateTime.toISOString(),
-        headcount_max: headcountMax,
-        skill_min: SKILL_BANDS[fromIndex].min,
-        skill_max: SKILL_BANDS[toIndex].max,
+        fee: event.fee,
+        start_time: event.startTime.toISOString(),
+        end_time: event.endTime.toISOString(),
+        headcount_max: event.headcountMax,
+        skill_min: event.skillMin,
+        skill_max: event.skillMax,
       });
       if (error) throw error;
       router.replace('/');
@@ -98,11 +79,13 @@ export default function CreateEventScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Create event</Text>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+      <Text style={styles.title}>🏸 Host a game</Text>
+      <Text style={styles.subtitle}>Fill in the details so players know what to expect</Text>
+      <SectionDivider />
 
-      <Text style={styles.label}>Title</Text>
-      <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Friendly doubles" />
+      <Text style={styles.label}>Event title</Text>
+      <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Friendly doubles" placeholderTextColor={Court.inkSecondary} />
 
       <Text style={styles.label}>Description</Text>
       <TextInput
@@ -110,13 +93,14 @@ export default function CreateEventScreen() {
         value={description}
         onChangeText={setDescription}
         placeholder="Optional details for players"
+        placeholderTextColor={Court.inkSecondary}
         multiline
       />
 
-      <Text style={styles.label}>Venue</Text>
+      <Text style={styles.label}>📍 Venue</Text>
       <VenuePicker selectedVenueId={venue?.id ?? null} onSelect={setVenue} />
 
-      <Text style={styles.label}>Number of people</Text>
+      <Text style={styles.label}>👥 Number of players</Text>
       <TextInput
         style={styles.input}
         value={headcountText}
@@ -124,16 +108,25 @@ export default function CreateEventScreen() {
         keyboardType="number-pad"
       />
 
-      <Text style={styles.label}>Fee (NT$)</Text>
+      <Text style={styles.label}>💰 Fee (NT$, 0 for free)</Text>
       <TextInput style={styles.input} value={feeText} onChangeText={setFeeText} keyboardType="number-pad" />
 
-      <Text style={styles.label}>Date</Text>
-      <DateTimePicker mode="date" value={date} onValueChange={(_event, newDate) => setDate(newDate)} presentation="inline" display="spinner" />
+      <FieldCard icon="📅" label="Date">
+        <DateTimePicker mode="date" value={date} onValueChange={(_event, newDate) => setDate(newDate)} presentation="inline" display="spinner" />
+      </FieldCard>
 
-      <Text style={styles.label}>Start time</Text>
-      <DateTimePicker mode="time" value={startTime} onValueChange={(_event, newTime) => setStartTime(newTime)} presentation="inline" display="spinner" />
+      <Text style={styles.label}>🕒 Start time (24-hour, e.g. 18:30)</Text>
+      <TextInput
+        style={styles.input}
+        value={startTimeText}
+        onChangeText={setStartTimeText}
+        placeholder="18:30"
+        placeholderTextColor={Court.inkSecondary}
+        keyboardType="numbers-and-punctuation"
+        maxLength={5}
+      />
 
-      <Text style={styles.label}>Duration (minutes)</Text>
+      <Text style={styles.label}>⏱️ Duration (minutes)</Text>
       <TextInput
         style={styles.input}
         value={durationMinutesText}
@@ -141,35 +134,39 @@ export default function CreateEventScreen() {
         keyboardType="number-pad"
       />
 
-      <Text style={styles.label}>Skill range: from</Text>
-      <Picker selectedValue={fromBandId} onValueChange={(value) => setFromBandId(value as SkillBandId)}>
-        {SKILL_BANDS.map((band) => (
-          <Picker.Item key={band.id} label={band.label} value={band.id} />
-        ))}
-      </Picker>
+      <Text style={styles.label}>🏆 Skill range: from</Text>
+      <SkillBandSelector selectedId={fromBandId} onSelect={setFromBandId} />
 
-      <Text style={styles.label}>Skill range: to</Text>
-      <Picker selectedValue={toBandId} onValueChange={(value) => setToBandId(value as SkillBandId)}>
-        {SKILL_BANDS.map((band) => (
-          <Picker.Item key={band.id} label={band.label} value={band.id} />
-        ))}
-      </Picker>
+      <Text style={styles.label}>🏆 Skill range: to</Text>
+      <SkillBandSelector selectedId={toBandId} onSelect={setToBandId} />
 
-      <Pressable style={styles.submitButton} disabled={submitting} onPress={handleSubmit}>
-        <Text style={styles.submitButtonText}>{submitting ? 'Creating...' : 'Create event'}</Text>
-      </Pressable>
+      <ActionButton
+        label={submitting ? 'Creating...' : 'Create event'}
+        onPress={handleSubmit}
+        loading={submitting}
+        style={styles.submitButton}
+      />
       {submitError && <Text style={styles.error}>{submitError}</Text>}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, gap: 4 },
-  title: { fontSize: 24, fontWeight: '600', marginBottom: 12 },
-  label: { fontWeight: '600', marginTop: 12 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginTop: 4 },
+  screen: { backgroundColor: Court.greenTint },
+  container: { padding: Space.lg, gap: 4, paddingBottom: Space.xl * 2 },
+  title: { fontSize: 28, fontFamily: Font.displayBlack, color: Court.ink, marginBottom: 2 },
+  subtitle: { color: Court.inkSecondary, marginBottom: Space.md },
+  label: { fontWeight: '700', color: Court.ink, marginTop: Space.md },
+  input: {
+    borderWidth: 1,
+    borderColor: Court.line,
+    backgroundColor: Court.shuttle,
+    borderRadius: Radius.md,
+    padding: 10,
+    marginTop: 4,
+    color: Court.ink,
+  },
   multiline: { minHeight: 80, textAlignVertical: 'top' },
-  submitButton: { backgroundColor: '#208AEF', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 20 },
-  submitButtonText: { color: '#fff', fontWeight: '600' },
-  error: { color: 'red', marginTop: 8 },
+  submitButton: { marginTop: Space.xl, alignSelf: 'stretch' },
+  error: { color: Court.danger, marginTop: Space.sm },
 });
