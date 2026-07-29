@@ -32,7 +32,7 @@ export type EventDetail = EventListItem & { description: string | null; organize
 export type Attendee = {
   user_id: string;
   status: 'pending' | 'accepted' | 'declined';
-  profiles: { display_name: string; skill_level: number | null; contact_info: string | null } | null;
+  profiles: { display_name: string; skill_level: number | null; contact_info: string | null; is_anonymous: boolean } | null;
 };
 
 export type ProfileSummary = {
@@ -185,13 +185,13 @@ async function getEventRosters(supabase: SupabaseClient, eventIds: string[]): Pr
   if (eventIds.length === 0) return result;
   const { data } = await supabase
     .from('event_participants')
-    .select('event_id, user_id, status, profiles(display_name, skill_level, profile_contact(contact_info))')
+    .select('event_id, user_id, status, profiles(display_name, skill_level, is_anonymous, profile_contact(contact_info))')
     .in('event_id', eventIds);
   type Row = {
     event_id: string;
     user_id: string;
     status: Attendee['status'];
-    profiles: { display_name: string; skill_level: number | null; profile_contact: ProfileContactRow } | null;
+    profiles: { display_name: string; skill_level: number | null; is_anonymous: boolean; profile_contact: ProfileContactRow } | null;
   };
   for (const row of (data as unknown as Row[] | null) ?? []) {
     const attendee: Attendee = {
@@ -201,6 +201,7 @@ async function getEventRosters(supabase: SupabaseClient, eventIds: string[]): Pr
         ? {
             display_name: row.profiles.display_name,
             skill_level: row.profiles.skill_level,
+            is_anonymous: row.profiles.is_anonymous,
             contact_info: row.profiles.profile_contact?.contact_info ?? null,
           }
         : null,

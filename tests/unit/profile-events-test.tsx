@@ -50,13 +50,13 @@ const mockAllRosterRows = [
     event_id: organizedEvent.id,
     user_id: 'participant-1',
     status: 'pending',
-    profiles: { display_name: 'Newbie Player', skill_level: 2, profile_contact: { contact_info: '090-1234' } },
+    profiles: { display_name: 'Newbie Player', skill_level: 2, is_anonymous: true, profile_contact: { contact_info: '090-1234' } },
   },
   {
     event_id: attendingEvent.id,
     user_id: 'fake-user-id',
     status: 'accepted',
-    profiles: { display_name: 'Fake Player', skill_level: 8, profile_contact: null },
+    profiles: { display_name: 'Fake Player', skill_level: 8, is_anonymous: false, profile_contact: null },
   },
 ];
 
@@ -178,6 +178,20 @@ it(
     // Both events now show 2/8: organizedEvent's request just got accepted,
     // and attendingEvent already had the viewer's own accepted row.
     expect(screen.getAllByText('2/8 players')).toHaveLength(2);
+  },
+  15000
+);
+
+it(
+  'shows a Guest badge for an anonymous attendee and not for a regular one',
+  async () => {
+    await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)/profile' });
+
+    await screen.findByText(organizedEvent.title);
+    expect(await screen.findByText('Newbie Player')).toBeTruthy();
+
+    expect(screen.getByText('Guest')).toBeTruthy();
+    expect(screen.queryAllByText('Guest')).toHaveLength(1);
   },
   15000
 );

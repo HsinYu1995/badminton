@@ -394,6 +394,7 @@ function PersonRow({
   statusTone,
   decision,
   rating,
+  isGuest,
 }: {
   name: string;
   skillLevel: number | null;
@@ -403,6 +404,7 @@ function PersonRow({
   statusTone?: 'green' | 'neutral' | 'danger';
   decision?: { onAccept: () => void; onDecline: () => void; loading?: boolean };
   rating?: { value: number; onChange: (score: number) => void; disabled?: boolean };
+  isGuest?: boolean;
 }) {
   const { t } = useI18n();
   return (
@@ -410,6 +412,7 @@ function PersonRow({
       <Text style={styles.rosterName}>{name}</Text>
       <View style={styles.pillRowSmall}>
         {statusLabel && <Pill label={statusLabel} tone={statusTone ?? 'neutral'} />}
+        {isGuest && <Pill label={t('profile.guestBadge')} tone="neutral" />}
         {skillLevel != null && <Pill label={t(`skillBands.${bandForLevel(skillLevel).id}`)} tone="feather" />}
         <CreditPill credit={credit} />
         {contact && <Pill label={contact} tone="neutral" />}
@@ -502,6 +505,7 @@ function FellowParticipants({
           skillLevel={attendee.profiles?.skill_level ?? null}
           contact={attendee.profiles?.contact_info}
           credit={credits[attendee.user_id]}
+          isGuest={attendee.profiles?.is_anonymous ?? false}
           rating={
             canRate
               ? { value: myRatings[attendee.user_id] ?? 0, onChange: (score) => handleRate(attendee.user_id, score) }
@@ -571,6 +575,7 @@ function AttendeeRoster({
           skillLevel={attendee.profiles?.skill_level ?? null}
           contact={attendee.profiles?.contact_info}
           credit={credits[attendee.user_id]}
+          isGuest={attendee.profiles?.is_anonymous ?? false}
           statusLabel={
             attendee.status === 'accepted'
               ? t('profile.statusAccepted')
