@@ -80,6 +80,8 @@ export const en = {
   'discover.declined': 'Declined',
   'discover.join': 'Join',
   'discover.spotsFilledNotice': '🔔 {count} {spot} filled since you applied',
+  'discover.guestExit': 'Exit guest mode',
+  'discover.guestExitFailed': 'Could not exit guest mode',
 
   'eventCard.past': 'Past',
   'eventCard.venueTbd': 'Venue TBD',
@@ -235,6 +237,8 @@ export const zhTW: Translations = {
   'discover.declined': '未獲接受',
   'discover.join': '加入',
   'discover.spotsFilledNotice': '🔔 自您申請後已有 {count} 個空位被填滿',
+  'discover.guestExit': '結束訪客模式',
+  'discover.guestExitFailed': '無法結束訪客模式',
 
   'eventCard.past': '已結束',
   'eventCard.venueTbd': '場地待定',

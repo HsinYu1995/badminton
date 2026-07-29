@@ -32,4 +32,14 @@ describe('Tab bar for a guest session', () => {
     expect(screen.queryByText('Create')).toBeNull();
     expect(screen.queryByText('Profile')).toBeNull();
   });
+
+  it('does not render the real Profile screen when navigated to directly', async () => {
+    await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)/profile' });
+    expect(screen.queryByText('🏸 Profile')).toBeNull();
+  });
+
+  it('does not render the real Create screen when navigated to directly', async () => {
+    await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)/create' });
+    expect(screen.queryByText('🏸 Host a game')).toBeNull();
+  });
 });

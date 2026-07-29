@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
-import { View, Text, FlatList, ActivityIndicator, StyleSheet } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { View, Text, FlatList, ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
@@ -17,7 +17,8 @@ type ParticipantStatus = 'pending' | 'accepted' | 'declined';
 
 export default function DiscoverScreen() {
   const { t, locale } = useI18n();
-  const { session } = useAuth();
+  const { session, signOut } = useAuth();
+  const router = useRouter();
   const [coords, setCoords] = useState<Coordinates>(null);
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [distances, setDistances] = useState<Record<string, number | null>>({});
@@ -42,6 +43,7 @@ export default function DiscoverScreen() {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [cancelingEventId, setCancelingEventId] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [guestExitError, setGuestExitError] = useState<string | null>(null);
 
   // Best-effort, once per mount - a declined/unavailable location just
   // means every distance_meters comes back null (time-only sort), never
@@ -236,6 +238,15 @@ export default function DiscoverScreen() {
     }
   }
 
+  async function handleGuestExit() {
+    setGuestExitError(null);
+    try {
+      await signOut();
+    } catch (err) {
+      setGuestExitError(err instanceof Error ? err.message : t('discover.guestExitFailed'));
+    }
+  }
+
   // Search filters over whatever's currently loaded - it doesn't trigger a
   // fresh server search or auto-load further pages to find a match further
   // down the list (see the design doc's "Search stays client-side" note).
@@ -252,6 +263,12 @@ export default function DiscoverScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>{t('discover.headerTitle')}</Text>
         <Text style={styles.subtitle}>{t('discover.subtitle')}</Text>
+        {session?.user.is_anonymous && (
+          <Pressable onPress={handleGuestExit} hitSlop={8}>
+            <Text style={styles.guestExitLink}>{t('discover.guestExit')}</Text>
+          </Pressable>
+        )}
+        {guestExitError && <Text style={styles.error}>{guestExitError}</Text>}
         <SectionDivider />
         <SearchBar value={query} onChangeText={setQuery} placeholder={t('discover.searchPlaceholder')} />
       </View>
@@ -288,48 +305,50 @@ export default function DiscoverScreen() {
             const isOwnEvent = session?.user.id === event.organizer_id;
             const requestStatus = myRequests[event.id];
             return (
-              <EventCard
-                event={event}
-                participantCount={participantCounts[event.id]}
-                distanceMeters={distances[event.id]}
-                action={
-                  isOwnEvent ? (
-                    <Text style={styles.ownEventLabel}>{t('discover.yourEvent')}</Text>
-                  ) : requestStatus === 'accepted' ? (
-                    <ActionButton
-                      label={t('discover.leaveEvent')}
-                      onPress={() => handleCancelRequest(event)}
-                      variant="danger"
-                      loading={cancelingEventId === event.id}
-                    />
-                  ) : requestStatus === 'pending' ? (
-                    <View style={styles.pendingAction}>
-                      {filledSinceApplied[event.id] > 0 && (
-                        <Text style={styles.filledNotice}>
-                          {t('discover.spotsFilledNotice', {
-                            count: filledSinceApplied[event.id],
-                            spot: pluralize(filledSinceApplied[event.id], 'spot', 'spots', locale),
-                          })}
-                        </Text>
-                      )}
+              <Pressable onPress={() => router.push({ pathname: '/event/[id]', params: { id: event.id } })}>
+                <EventCard
+                  event={event}
+                  participantCount={participantCounts[event.id]}
+                  distanceMeters={distances[event.id]}
+                  action={
+                    isOwnEvent ? (
+                      <Text style={styles.ownEventLabel}>{t('discover.yourEvent')}</Text>
+                    ) : requestStatus === 'accepted' ? (
                       <ActionButton
-                        label={t('discover.cancelRequest')}
+                        label={t('discover.leaveEvent')}
                         onPress={() => handleCancelRequest(event)}
-                        variant="outline"
+                        variant="danger"
                         loading={cancelingEventId === event.id}
                       />
-                    </View>
-                  ) : requestStatus === 'declined' ? (
-                    <ActionButton label={t('discover.declined')} onPress={() => {}} variant="muted" disabled />
-                  ) : (
-                    <ActionButton
-                      label={t('discover.join')}
-                      onPress={() => handleJoin(event)}
-                      loading={joiningEventId === event.id}
-                    />
-                  )
-                }
-              />
+                    ) : requestStatus === 'pending' ? (
+                      <View style={styles.pendingAction}>
+                        {filledSinceApplied[event.id] > 0 && (
+                          <Text style={styles.filledNotice}>
+                            {t('discover.spotsFilledNotice', {
+                              count: filledSinceApplied[event.id],
+                              spot: pluralize(filledSinceApplied[event.id], 'spot', 'spots', locale),
+                            })}
+                          </Text>
+                        )}
+                        <ActionButton
+                          label={t('discover.cancelRequest')}
+                          onPress={() => handleCancelRequest(event)}
+                          variant="outline"
+                          loading={cancelingEventId === event.id}
+                        />
+                      </View>
+                    ) : requestStatus === 'declined' ? (
+                      <ActionButton label={t('discover.declined')} onPress={() => {}} variant="muted" disabled />
+                    ) : (
+                      <ActionButton
+                        label={t('discover.join')}
+                        onPress={() => handleJoin(event)}
+                        loading={joiningEventId === event.id}
+                      />
+                    )
+                  }
+                />
+              </Pressable>
             );
           }}
         />
@@ -343,6 +362,7 @@ const styles = StyleSheet.create({
   header: { padding: Space.lg, gap: Space.sm, backgroundColor: Court.greenTint },
   title: { fontSize: 28, fontFamily: Font.displayBlack, color: Court.ink },
   subtitle: { color: Court.inkSecondary, marginBottom: Space.xs },
+  guestExitLink: { fontFamily: Font.display, fontSize: 12, color: Court.danger },
   spinner: { marginTop: Space.xl },
   list: { padding: Space.lg, paddingTop: 0 },
   emptyState: { alignItems: 'center', marginTop: Space.xl, gap: 4 },
