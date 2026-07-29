@@ -47,7 +47,12 @@ jobs:
           test -f expo-env.d.ts
           test -f .expo/types/router.d.ts
 
+      # Pinned to match the exact version in package.json's devDependencies - the
+      # action's lockfile auto-detection installed a version whose CLI didn't
+      # recognize several config.toml keys this project's config actually uses.
       - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
 
       - name: Start local Supabase
         run: supabase start
