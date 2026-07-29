@@ -62,6 +62,7 @@
     "test:participant-decision": "node --env-file=.env.local tests/participant-decision.test.mjs",
     "test:ratings": "node --env-file=.env.local tests/ratings.test.mjs",
     "test:discover-pagination": "node --env-file=.env.local tests/discover-pagination.test.mjs",
+    "test:integration": "node scripts/run-integration-tests.mjs",
     "test": "jest"
   },
   "private": true,
