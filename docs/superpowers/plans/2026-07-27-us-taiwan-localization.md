@@ -18,7 +18,8 @@
 - `formatFee`: `'zh-TW'` unchanged (`NT$${fee}` / `免費`). `'en-US'` converts via fixed `NTD_TO_USD_RATE = 31.5` to `~$X.XX USD` / `Free`. This is a display-only approximation, not a real exchange rate - documented inline.
 - `formatStartTime`: uses `Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' })` instead of no-arg `toLocaleDateString`/`toLocaleTimeString`.
 - Raw Supabase/Postgres error messages surfaced verbatim (`venue-picker.tsx`'s `error.message`) stay untranslated English - explicitly out of scope.
-- Every existing test in `tests/unit/*-test.tsx` must keep passing unchanged (they render with the default `'en-US'` bucket). New `zh-TW` coverage is added as new, separate test files, never by editing existing assertions to expect Mandarin.
+- Every existing test in `tests/unit/*-test.tsx` must keep passing unchanged. Screens rendered via `renderRouter` use the default `'en-US'` bucket (the root `__mocks__/expo-localization.js`); calls into `formatDistance`/`formatFee` made *without* an explicit `locale` argument (any not-yet-migrated call site) instead reproduce that specific function's own prior hardcoded output exactly, which is not uniformly `'en-US'`-shaped - see each function's default/fallback in Task 2. New `zh-TW` coverage is added as new, separate test files, never by editing existing assertions to expect Mandarin.
+  - **Narrow, deliberate exception:** once a screen task wires a real explicit `locale` into `formatFee`/`formatDistance` at a call site a pre-existing test exercises (this happens once, in Task 8's `event-card.tsx`), that pre-existing test's asserted *numbers* (not text) may legitimately change from the old NT$/metric shim output to real `'en-US'` USD/imperial output - that's the feature working correctly for the first time there, not a regression. Task 8 documents the exact two assertions this applies to. This exception does not extend to translated *text* (button labels, headers, etc.), which stays identical English under the `en-US` bucket in every task.
 - Full plan is done when `npm test` passes with zero failures.
 
 ---
@@ -455,7 +456,7 @@ git commit -m "feat(i18n): add core i18n module with en-US/zh-TW dictionaries"
 
 **Interfaces:**
 - Consumes: `LocaleTag` from `src/lib/i18n.tsx` (Task 1).
-- Produces: `formatStartTime(startTime: string, locale: LocaleTag = 'en-US'): string`; `formatFee(fee: number, locale: LocaleTag = 'en-US'): string`; `formatDistance(meters: number, locale: LocaleTag = 'en-US'): string`; `formatCredit(credit: Credit | undefined, locale: LocaleTag = 'en-US'): string`. The default parameter means any call site not yet migrated in a later task still compiles.
+- Produces: `formatStartTime(startTime: string, locale: LocaleTag = 'en-US'): string`; `formatFee(fee: number, locale?: LocaleTag): string`; `formatDistance(meters: number, locale: LocaleTag = 'zh-TW'): string`; `formatCredit(credit: Credit | undefined, locale: LocaleTag = 'en-US'): string`. Each default (or, for `formatFee`, the omitted-`locale` fallback) is chosen per-function to exactly reproduce that function's own prior hardcoded behavior - they are not uniformly `'en-US'` because the old code itself was not uniformly locale-shaped (see each function's inline comment below). This means any call site not yet migrated in a later task keeps compiling *and* keeps its exact prior runtime output.
 
 - [ ] **Step 1: Read the current test file to match its style**
 
@@ -568,7 +569,17 @@ export function formatStartTime(startTime: string, locale: LocaleTag = 'en-US'):
 // purposes only, not a real currency conversion.
 const NTD_TO_USD_RATE = 31.5;
 
-export function formatFee(fee: number, locale: LocaleTag = 'en-US'): string {
+// `locale` is optional (not defaulted) because the *old* hardcoded behavior
+// this replaces was itself locale-inconsistent: zero fee was always the
+// English word "Free," nonzero was always NT$ - two different implicit
+// locales in one function, so no single LocaleTag default reproduces both.
+// Omitting `locale` entirely (every not-yet-migrated caller, until its own
+// task passes one explicitly) runs the exact old branching verbatim;
+// passing an explicit locale uses the new, locale-consistent branching.
+export function formatFee(fee: number, locale?: LocaleTag): string {
+  if (locale === undefined) {
+    return fee === 0 ? 'Free' : `NT$${fee}`;
+  }
   if (fee === 0) return locale === 'zh-TW' ? '免費' : 'Free';
   if (locale === 'zh-TW') return `NT$${fee}`;
   return `~$${(fee / NTD_TO_USD_RATE).toFixed(2)} USD`;
@@ -578,7 +589,11 @@ export function formatFee(fee: number, locale: LocaleTag = 'en-US'): string {
 // anything further as kilometers to one decimal place ("2.3 km away"),
 // matching how Google Maps/most map apps switch units. en-US uses the
 // imperial equivalent (feet under ~0.1mi, else miles to one decimal).
-export function formatDistance(meters: number, locale: LocaleTag = 'en-US'): string {
+// Defaults to 'zh-TW' (not 'en-US') because the old hardcoded behavior
+// this replaces was unconditionally metric - unlike formatFee, the old
+// output is uniform across all magnitudes, so one default value reproduces
+// it exactly for every not-yet-migrated caller.
+export function formatDistance(meters: number, locale: LocaleTag = 'zh-TW'): string {
   if (locale === 'zh-TW') {
     if (meters < 1000) return `${Math.round(meters)} m away`;
     return `${(meters / 1000).toFixed(1)} km away`;
@@ -596,6 +611,10 @@ Note: the literal `'Free'`/`'免費'` strings inline here (rather than calling `
 ```ts
 import type { LocaleTag } from '@/lib/i18n';
 
+// Defaults to 'en-US': the old hardcoded 'Unrated' was already an English
+// string, so this default reproduces it exactly for every not-yet-migrated
+// caller (unlike formatFee, there's no cross-branch inconsistency here -
+// the star format itself is locale-invariant).
 export function formatCredit(credit: Credit | undefined, locale: LocaleTag = 'en-US'): string {
   if (!credit) return locale === 'zh-TW' ? '未評分' : 'Unrated';
   return `★ ${credit.credit.toFixed(1)} (${credit.ratingsCount})`;
@@ -753,16 +772,31 @@ jest.mock('expo-localization', () => ({
   useLocales: () => [{ languageTag: 'zh-TW', languageCode: 'zh', regionCode: 'TW', textDirection: 'ltr' }],
 }));
 
+// Stable reference: see the comment in discover-test.tsx - a fresh `session`
+// object literal per call breaks any screen that depends on it in a
+// useCallback/useEffect dependency array.
+const FAKE_SESSION = { user: { id: 'fake-user-id' } };
+
 jest.mock('@/lib/auth-context', () => ({
   AuthProvider: ({ children }: { children: unknown }) => children,
-  useAuth: () => ({ session: { user: { id: 'fake-user-id' } }, isLoading: false }),
+  useAuth: () => ({ session: FAKE_SESSION, isLoading: false }),
+}));
+
+// The Create screen renders VenuePicker, which fetches venues on mount -
+// see create-validation-test.tsx for this same mock shape.
+jest.mock('@/lib/supabase', () => ({
+  supabase: {
+    from: () => ({ select: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }),
+  },
 }));
 
 describe('SkillBandSelector under zh-TW locale', () => {
   it('renders the Mandarin label for each skill band', async () => {
     await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)/create' });
-    expect(screen.getByText('新手')).toBeTruthy();
-    expect(screen.getByText('職業級')).toBeTruthy();
+    // Create renders two SkillBandSelectors (skill range "from" and "to"),
+    // each showing the full 7-band list, so every label appears twice.
+    expect(screen.getAllByText('新手')).toHaveLength(2);
+    expect(screen.getAllByText('職業級')).toHaveLength(2);
   });
 });
 ```
@@ -836,9 +870,9 @@ export function SkillBandSelector({ selectedId, onSelect }: SkillBandSelectorPro
 
 Note: `` t(`skillBands.${band.id}`) `` - `band.id` is `SkillBandId`, so the template literal type resolves to one of the seven `'skillBands.*'` keys in `Translations`; this type-checks without a cast.
 
-- [ ] **Step 5: Root layout must already provide `I18nProvider` for this test to render at all**
+- [ ] **Step 5: `I18nProvider` must already be wired for this test to render at all**
 
-This test needs `I18nProvider` wrapping the app (Task 5). If Task 5 hasn't landed yet when running this task, do Task 5 first (swap task order) or temporarily wrap in this test file - but per this plan's task order, Task 5 runs next; **do Task 5 before Step 6 of this task if executing tasks strictly in order would leave this test unable to pass.** (Recommended: execute Task 5 immediately after Step 4 here, then return to Step 6.)
+This test needs `I18nProvider` wrapping the app (Task 5) already landed - `renderRouter` mounts the real root layout, and without `I18nProvider` in the tree, `useI18n()` throws. **Execute Task 5 before this task** (despite the numbering) if it hasn't landed yet.
 
 - [ ] **Step 6: Run the test to verify it passes**
 
@@ -881,13 +915,26 @@ jest.mock('expo-localization', () => ({
   useLocales: () => [{ languageTag: 'zh-TW', languageCode: 'zh', regionCode: 'TW', textDirection: 'ltr' }],
 }));
 
+// A stable module-level reference matters here: this test renders '/(tabs)',
+// which is DiscoverScreen (the index tab) - its loadEvents useCallback
+// depends on [session], which feeds a useFocusEffect. A mock that returns a
+// fresh `session` object literal on every call gives that dependency a new
+// identity every render, re-firing the focus effect forever and hanging the
+// test until Jest's own per-test timeout kills it (see the same gotcha
+// documented in tests/unit/discover-test.tsx).
+const FAKE_SESSION = { user: { id: 'fake-user-id' } };
+
 jest.mock('@/lib/auth-context', () => ({
   AuthProvider: ({ children }: { children: unknown }) => children,
-  useAuth: () => ({ session: { user: { id: 'fake-user-id' } }, isLoading: false }),
+  useAuth: () => ({ session: FAKE_SESSION, isLoading: false }),
 }));
 
+// DiscoverScreen's fetchDiscoverPage calls supabase.rpc('discover_events', ...),
+// not supabase.from(...) - the mock must cover rpc or the render hangs
+// waiting on an undefined call.
 jest.mock('@/lib/supabase', () => ({
   supabase: {
+    rpc: () => Promise.resolve({ data: [], error: null }),
     from: () => ({
       select: () => ({
         in: () => Promise.resolve({ data: [] }),
@@ -898,10 +945,17 @@ jest.mock('@/lib/supabase', () => ({
   },
 }));
 
+jest.mock('expo-location', () => ({
+  requestForegroundPermissionsAsync: () => Promise.resolve({ granted: false }),
+}));
+
 describe('Tab bar under zh-TW locale', () => {
   it('renders Mandarin tab titles', async () => {
     await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)' });
-    expect(screen.getByText('探索')).toBeTruthy();
+    // Both the header title and the tab bar's own label render the same
+    // string (TabsLayout doesn't set headerShown: false and doesn't
+    // override tabBarLabel), so more than one element carries this text.
+    expect(screen.getAllByText('探索').length).toBeGreaterThan(0);
   });
 });
 ```
@@ -1476,7 +1530,13 @@ Expected: PASS
 - [ ] **Step 7: Run the full suite (including discover-test.tsx, discover-join-test.tsx, discover-pagination-test.tsx, discover-search-test.tsx, discover-events-test.ts, compute-player-counts-test.ts)**
 
 Run: `npx jest`
-Expected: PASS. These pre-existing tests render under the default `en-US` mock, so `t('discover.join')` etc. resolve to the exact same English strings they already assert on. Same pre-existing failure set from `profile.tsx`/`event/[id].tsx` `.label` usages (event-card.tsx's is now fixed).
+
+**Expected, narrow exception to "zero edits to pre-existing tests":** most of these pre-existing tests render under the default `en-US` mock, so `t('discover.join')` etc. resolve to the exact same English *text* they already assert on - no change needed there. But `formatFee`/`formatDistance` are different: their whole purpose (Task 2) is to make `'en-US'` produce genuinely different *numbers* (USD instead of NT$, miles instead of km) than the old un-migrated shim did. Once `EventCard` passes a real explicit locale (this task), any pre-existing test asserting the *old* NT$/metric numbers under the implicit `en-US` bucket is asserting stale, pre-feature behavior - not a regression to preserve, but the feature working correctly for the first time at this call site. Two assertions fall into this category and need updating to the new, correct `en-US` output:
+
+- `tests/unit/discover-test.tsx:90` - `expect(screen.getByText(/NT\$150/)).toBeTruthy();` becomes `expect(screen.getByText(/\$4\.76/)).toBeTruthy();` (`formatFee(150, 'en-US')` = `150 / 31.5 = 4.7619...` → `'~$4.76 USD'`). Line 89's `expect(screen.getByText(/Free/)).toBeTruthy();` (the zero-fee case) needs NO change - `'Free'` is identical under both the old shim and the new explicit `'en-US'` branch.
+- `tests/unit/discover-pagination-test.tsx:104` - `expect(screen.getAllByText('500 m away').length).toBe(DISCOVER_PAGE_SIZE);` becomes `expect(screen.getAllByText('0.3 mi away').length).toBe(DISCOVER_PAGE_SIZE);` (`formatDistance(500, 'en-US')`: `500 / 1609.34 = 0.3107mi`, not under the ~0.1mi feet threshold, so `.toFixed(1)` → `'0.3 mi away'`). Update the comment on the line above it too.
+
+No other pre-existing test asserts on fee or distance display text (confirmed by search) - do not touch any other file's assertions. Expected result after these two edits: PASS, with the same pre-existing failure set from `profile.tsx`/`event/[id].tsx` `.label` usages (event-card.tsx's own `.label` fallout is fixed by this task).
 
 - [ ] **Step 8: Commit**
 

@@ -1,5 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
+import { useI18n } from '@/lib/i18n';
 import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
 
 type SkillBandSelectorProps = {
@@ -12,6 +13,7 @@ type SkillBandSelectorProps = {
 // reads as "pick one" at a glance instead of requiring a tap-to-reveal
 // interaction the way a native dropdown does.
 export function SkillBandSelector({ selectedId, onSelect }: SkillBandSelectorProps) {
+  const { t } = useI18n();
   return (
     <View style={styles.row}>
       {SKILL_BANDS.map((band) => {
@@ -24,7 +26,7 @@ export function SkillBandSelector({ selectedId, onSelect }: SkillBandSelectorPro
             accessibilityState={{ selected }}
             style={[styles.chip, selected && styles.chipSelected]}
           >
-            <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>{band.label}</Text>
+            <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>{t(`skillBands.${band.id}`)}</Text>
           </Pressable>
         );
       })}

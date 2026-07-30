@@ -1,12 +1,18 @@
 import { Tabs } from 'expo-router';
 import { Text } from 'react-native';
 import { Court, Font } from '@/constants/badminton-theme';
+import { useAuth } from '@/lib/auth-context';
+import { useI18n } from '@/lib/i18n';
 
 function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }) {
   return <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>{emoji}</Text>;
 }
 
 export default function TabsLayout() {
+  const { t } = useI18n();
+  const { session } = useAuth();
+  const isGuest = !!session?.user.is_anonymous;
+
   return (
     <Tabs
       screenOptions={{
@@ -21,16 +27,18 @@ export default function TabsLayout() {
     >
       <Tabs.Screen
         name="index"
-        options={{ title: 'Discover', tabBarIcon: ({ focused }) => <TabIcon emoji="🔎" focused={focused} /> }}
+        options={{ title: t('tabs.discover'), tabBarIcon: ({ focused }) => <TabIcon emoji="🔎" focused={focused} /> }}
       />
-      <Tabs.Screen
-        name="create"
-        options={{ title: 'Create', tabBarIcon: ({ focused }) => <TabIcon emoji="🏸" focused={focused} /> }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{ title: 'Profile', tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} /> }}
-      />
+      <Tabs.Protected guard={!isGuest}>
+        <Tabs.Screen
+          name="create"
+          options={{ title: t('tabs.create'), tabBarIcon: ({ focused }) => <TabIcon emoji="🏸" focused={focused} /> }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{ title: t('tabs.profile'), tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} /> }}
+        />
+      </Tabs.Protected>
     </Tabs>
   );
 }

@@ -1,0 +1,22 @@
+-- profiles.is_anonymous is mirrored from auth.users.is_anonymous at
+-- insert time only (see 20260728040000_guest_anonymous_auth.sql) and is
+-- the sole signal behind the organizer-facing "Guest" badge
+-- (src/app/(tabs)/profile.tsx's PersonRow). RLS is row-level, not
+-- column-level, so profiles_update_own's existing "auth.uid() = id"
+-- check does not stop a guest from rewriting their own is_anonymous to
+-- false.
+--
+-- A naive `revoke update (is_anonymous) on public.profiles from
+-- authenticated` is NOT sufficient here and was confirmed (empirically,
+-- via information_schema.column_privileges) to have no effect: Postgres
+-- grants UPDATE at the table level (see 20260716201044_rls_policies.sql's
+-- `grant select, update on public.profiles to authenticated`), and a
+-- column-specific REVOKE cannot narrow a broader table-level grant that's
+-- still in place - the two are independent ACL entries, and access is
+-- permitted if EITHER allows it. The only way to actually restrict this
+-- is to revoke the table-wide UPDATE and re-grant it only on the specific
+-- columns the app's client code ever writes (confirmed by grep:
+-- display_name and skill_level, in profile.tsx and guest-skill.tsx -
+-- nothing else is client-updatable on this table).
+revoke update on public.profiles from authenticated;
+grant update (display_name, skill_level) on public.profiles to authenticated;

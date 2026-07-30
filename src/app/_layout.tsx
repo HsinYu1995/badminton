@@ -1,6 +1,7 @@
 import { SplashScreen, Stack } from 'expo-router';
 import { useFonts, LeagueSpartan_700Bold, LeagueSpartan_800ExtraBold } from '@expo-google-fonts/league-spartan';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
+import { I18nProvider, useI18n } from '@/lib/i18n';
 import { AppSplashScreen } from '@/components/app-splash-screen';
 import { computeSplashProgress } from '@/lib/splash-progress';
 
@@ -18,13 +19,17 @@ function SplashScreenController({ fontsLoaded }: { fontsLoaded: boolean }) {
 }
 
 function RootNavigator() {
-  const { session } = useAuth();
+  const { session, needsGuestSkillPick } = useAuth();
+  const { t } = useI18n();
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={!!session}>
+      <Stack.Protected guard={!!session && !needsGuestSkillPick}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="event/[id]" options={{ headerShown: true, title: 'Event details' }} />
+        <Stack.Screen name="event/[id]" options={{ headerShown: true, title: t('eventDetail.headerTitle') }} />
+      </Stack.Protected>
+      <Stack.Protected guard={!!session && !!needsGuestSkillPick}>
+        <Stack.Screen name="guest-skill" options={{ headerShown: true, title: t('guestSkillPick.headerTitle') }} />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="(auth)" />
@@ -34,8 +39,12 @@ function RootNavigator() {
 }
 
 function AppBody({ fontsLoaded }: { fontsLoaded: boolean }) {
-  const { isLoading } = useAuth();
-  const ready = fontsLoaded && !isLoading;
+  const { isLoading, needsGuestSkillPick } = useAuth();
+  // needsGuestSkillPick is null only while it's still resolving for a fresh
+  // anonymous session (see auth-context.tsx) - withheld from rendering the
+  // same way fontsLoaded/isLoading already are, so RootNavigator never
+  // flashes `(tabs)` before flipping to the guest-skill screen.
+  const ready = fontsLoaded && !isLoading && needsGuestSkillPick !== null;
 
   return ready ? <RootNavigator /> : <AppSplashScreen progress={computeSplashProgress(fontsLoaded, isLoading)} />;
 }
@@ -44,9 +53,11 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts({ LeagueSpartan_700Bold, LeagueSpartan_800ExtraBold });
 
   return (
-    <AuthProvider>
-      <SplashScreenController fontsLoaded={fontsLoaded} />
-      <AppBody fontsLoaded={fontsLoaded} />
-    </AuthProvider>
+    <I18nProvider>
+      <AuthProvider>
+        <SplashScreenController fontsLoaded={fontsLoaded} />
+        <AppBody fontsLoaded={fontsLoaded} />
+      </AuthProvider>
+    </I18nProvider>
   );
 }

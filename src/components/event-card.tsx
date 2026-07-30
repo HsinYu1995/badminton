@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Court, Font, Radius, Shadow, Space, SkillBandAccents } from '@/constants/badminton-theme';
 import { bandForLevel } from '@/lib/skill-bands';
 import { formatDistance, formatFee, formatStartTime, isPastEvent, type EventListItem } from '@/lib/events';
+import { useI18n } from '@/lib/i18n';
 import { Pill } from '@/components/pill';
 
 const SKILL_SCALE_MIN = 1;
@@ -11,21 +12,13 @@ const SKILL_SCALE_MAX = 18;
 // A thin 1-18 strip with the event's [skill_min, skill_max] segment
 // highlighted, so competitiveness reads visually at a glance instead of
 // requiring the viewer to parse the numeric range in the pill below.
-function SkillGauge({ skillMin, skillMax, color }: { skillMin: number; skillMax: number; color: string }) {
+function SkillGauge({ skillMin, skillMax, color, label }: { skillMin: number; skillMax: number; color: string; label: string }) {
   const scaleSpan = SKILL_SCALE_MAX - SKILL_SCALE_MIN;
   const leftPct = ((skillMin - SKILL_SCALE_MIN) / scaleSpan) * 100;
   const widthPct = ((skillMax - skillMin) / scaleSpan) * 100;
   return (
-    <View
-      style={styles.gaugeTrack}
-      accessibilityLabel={`Skill range ${skillMin} to ${skillMax} out of ${SKILL_SCALE_MAX}`}
-    >
-      <View
-        style={[
-          styles.gaugeFill,
-          { left: `${leftPct}%`, width: `${Math.max(widthPct, 4)}%`, backgroundColor: color },
-        ]}
-      />
+    <View style={styles.gaugeTrack} accessibilityLabel={label}>
+      <View style={[styles.gaugeFill, { left: `${leftPct}%`, width: `${Math.max(widthPct, 4)}%`, backgroundColor: color }]} />
     </View>
   );
 }
@@ -45,6 +38,7 @@ type EventCardProps = {
 };
 
 export function EventCard({ event, action, participantCount, distanceMeters }: EventCardProps) {
+  const { t, locale } = useI18n();
   const band = bandForLevel(event.skill_min);
   const accent = SkillBandAccents[band.id] ?? Court.green;
   const past = isPastEvent(event);
@@ -57,22 +51,34 @@ export function EventCard({ event, action, participantCount, distanceMeters }: E
           <Text style={styles.title} numberOfLines={2}>
             {event.title}
           </Text>
-          {past && <Pill label="Past" tone="danger" />}
+          {past && <Pill label={t('eventCard.past')} tone="danger" />}
         </View>
 
-        <Text style={styles.meta}>📍 {event.venues?.name ?? 'Venue TBD'}</Text>
-        <Text style={styles.meta}>🕒 {formatStartTime(event.start_time)}</Text>
+        <Text style={styles.meta}>📍 {event.venues?.name ?? t('eventCard.venueTbd')}</Text>
+        <Text style={styles.meta}>🕒 {formatStartTime(event.start_time, locale)}</Text>
 
-        <SkillGauge skillMin={event.skill_min} skillMax={event.skill_max} color={accent} />
+        <SkillGauge
+          skillMin={event.skill_min}
+          skillMax={event.skill_max}
+          color={accent}
+          label={t('eventCard.skillGaugeAccessibilityLabel', { min: event.skill_min, max: event.skill_max, scaleMax: SKILL_SCALE_MAX })}
+        />
 
         <View style={styles.pillRow}>
-          <Pill label={`${band.label} · Lv ${event.skill_min}-${event.skill_max}`} tone="green" />
-          <Pill label={formatFee(event.fee)} tone="feather" />
           <Pill
-            label={participantCount != null ? `${participantCount}/${event.headcount_max} players` : `Up to ${event.headcount_max} players`}
+            label={t('eventCard.skillLabel', { band: t(`skillBands.${band.id}`), min: event.skill_min, max: event.skill_max })}
+            tone="green"
+          />
+          <Pill label={formatFee(event.fee, locale)} tone="feather" />
+          <Pill
+            label={
+              participantCount != null
+                ? t('eventCard.playersCountFraction', { count: participantCount, max: event.headcount_max })
+                : t('eventCard.playersUpTo', { max: event.headcount_max })
+            }
             tone="neutral"
           />
-          {distanceMeters != null && <Pill label={formatDistance(distanceMeters)} tone="neutral" />}
+          {distanceMeters != null && <Pill label={formatDistance(distanceMeters, locale)} tone="neutral" />}
         </View>
 
         {action && <View style={styles.actionRow}>{action}</View>}

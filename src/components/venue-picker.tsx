@@ -1,14 +1,57 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
+import { useI18n } from '@/lib/i18n';
+import { composeZhAddress } from '@/lib/venues';
 
 export type Venue = {
   id: string;
   name: string;
   address: string;
+  address_zh: string | null;
+  latitude: number;
+  longitude: number;
+  displayAddress: string;
 };
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      }
+    );
+  });
+}
+
+async function resolveDisplayAddress(
+  venue: Omit<Venue, 'displayAddress'>,
+  locale: 'en-US' | 'zh-TW',
+  hasLocationPermission: boolean
+): Promise<string> {
+  if (locale !== 'zh-TW') return venue.address;
+  if (venue.address_zh) return venue.address_zh;
+  if (Platform.OS === 'web' || !hasLocationPermission) return venue.address;
+  try {
+    const results = await withTimeout(
+      Location.reverseGeocodeAsync({ latitude: venue.latitude, longitude: venue.longitude }),
+      5000,
+      []
+    );
+    const composed = results[0] ? composeZhAddress(results[0]) : null;
+    return composed ?? venue.address;
+  } catch {
+    return venue.address;
+  }
+}
 
 type VenuePickerProps = {
   selectedVenueId: string | null;
@@ -17,6 +60,7 @@ type VenuePickerProps = {
 
 export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
   const { session } = useAuth();
+  const { t, locale } = useI18n();
   const [venues, setVenues] = useState<Venue[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -24,6 +68,7 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
   const [showNewVenueForm, setShowNewVenueForm] = useState(false);
   const [newVenueName, setNewVenueName] = useState('');
   const [newVenueAddress, setNewVenueAddress] = useState('');
+  const [newVenueAddressZh, setNewVenueAddressZh] = useState('');
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locatingInProgress, setLocatingInProgress] = useState(false);
@@ -31,16 +76,32 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     supabase
       .from('venues')
-      .select('id, name, address')
+      .select('id, name, address, address_zh, latitude, longitude')
       .order('name')
-      .then(({ data, error }) => {
-        if (error) setLoadError(error.message);
-        else setVenues(data ?? []);
+      .then(async ({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          setLoadError(error.message);
+          setLoading(false);
+          return;
+        }
+        const rows = data ?? [];
+        const { granted } = await Location.getForegroundPermissionsAsync();
+        if (cancelled) return;
+        const withDisplayAddress = await Promise.all(
+          rows.map(async (venue) => ({ ...venue, displayAddress: await resolveDisplayAddress(venue, locale, granted) }))
+        );
+        if (cancelled) return;
+        setVenues(withDisplayAddress);
         setLoading(false);
       });
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [locale]);
 
   async function handleUseCurrentLocation() {
     setLocationError(null);
@@ -48,13 +109,13 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!permission.granted) {
-        setLocationError('Location permission is required to add a venue.');
+        setLocationError(t('venuePicker.locationPermissionRequired'));
         return;
       }
       const position = await Location.getCurrentPositionAsync();
       setCoords({ latitude: position.coords.latitude, longitude: position.coords.longitude });
     } catch (err) {
-      setLocationError(err instanceof Error ? err.message : 'Could not get current location.');
+      setLocationError(err instanceof Error ? err.message : t('venuePicker.couldNotGetLocation'));
     } finally {
       setLocatingInProgress(false);
     }
@@ -70,27 +131,30 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
         .insert({
           name: newVenueName.trim(),
           address: newVenueAddress.trim(),
+          address_zh: newVenueAddressZh.trim() || null,
           location: `SRID=4326;POINT(${coords.longitude} ${coords.latitude})`,
           created_by: session.user.id,
         })
-        .select('id, name, address')
+        .select('id, name, address, address_zh, latitude, longitude')
         .single();
       if (error) throw error;
-      setVenues((prev) => [...prev, data]);
-      onSelect(data);
+      const venueWithDisplayAddress = { ...data, displayAddress: await resolveDisplayAddress(data, locale, true) };
+      setVenues((prev) => [...prev, venueWithDisplayAddress]);
+      onSelect(venueWithDisplayAddress);
       setShowNewVenueForm(false);
       setNewVenueName('');
       setNewVenueAddress('');
+      setNewVenueAddressZh('');
       setCoords(null);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Could not save venue.');
+      setSaveError(err instanceof Error ? err.message : t('venuePicker.couldNotSaveVenue'));
     } finally {
       setSavingVenue(false);
     }
   }
 
   if (loading) return <ActivityIndicator />;
-  if (loadError) return <Text style={styles.error}>Could not load venues: {loadError}</Text>;
+  if (loadError) return <Text style={styles.error}>{t('venuePicker.couldNotLoadVenues', { error: loadError })}</Text>;
 
   return (
     <View style={styles.container}>
@@ -101,13 +165,13 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
           onPress={() => onSelect(venue)}
         >
           <Text style={styles.venueName}>{venue.name}</Text>
-          <Text style={styles.venueAddress}>{venue.address}</Text>
+          <Text style={styles.venueAddress}>{venue.displayAddress}</Text>
         </Pressable>
       ))}
 
       {!showNewVenueForm && (
         <Pressable style={styles.addVenueRow} onPress={() => setShowNewVenueForm(true)}>
-          <Text style={styles.addVenueText}>+ Add new venue</Text>
+          <Text style={styles.addVenueText}>{t('venuePicker.addNewVenue')}</Text>
         </Pressable>
       )}
 
@@ -115,26 +179,33 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
         <View style={styles.newVenueForm}>
           <TextInput
             style={styles.input}
-            placeholder="Venue name"
+            placeholder={t('venuePicker.venueNamePlaceholder')}
             value={newVenueName}
             onChangeText={setNewVenueName}
           />
           <TextInput
             style={styles.input}
-            placeholder="Address"
+            placeholder={t('venuePicker.addressPlaceholder')}
             value={newVenueAddress}
             onChangeText={setNewVenueAddress}
           />
+          <TextInput
+            style={styles.input}
+            placeholder={t('venuePicker.addressZhPlaceholder')}
+            accessibilityLabel={t('venuePicker.addressZhLabel')}
+            value={newVenueAddressZh}
+            onChangeText={setNewVenueAddressZh}
+          />
           <Pressable style={styles.locationButton} onPress={handleUseCurrentLocation} disabled={locatingInProgress}>
             <Text style={styles.locationButtonText}>
-              {locatingInProgress ? 'Getting location...' : coords ? 'Location captured' : 'Use current location'}
+              {locatingInProgress ? t('venuePicker.gettingLocation') : coords ? t('venuePicker.locationCaptured') : t('venuePicker.useCurrentLocation')}
             </Text>
           </Pressable>
           {locationError && (
             <View>
               <Text style={styles.error}>{locationError}</Text>
               <Pressable onPress={handleUseCurrentLocation}>
-                <Text style={styles.retryText}>Retry</Text>
+                <Text style={styles.retryText}>{t('venuePicker.retry')}</Text>
               </Pressable>
             </View>
           )}
@@ -143,7 +214,7 @@ export function VenuePicker({ selectedVenueId, onSelect }: VenuePickerProps) {
             disabled={!coords || !newVenueName.trim() || !newVenueAddress.trim() || savingVenue}
             onPress={handleSaveVenue}
           >
-            <Text style={styles.saveButtonText}>{savingVenue ? 'Saving...' : 'Save venue'}</Text>
+            <Text style={styles.saveButtonText}>{savingVenue ? t('venuePicker.saving') : t('venuePicker.saveVenue')}</Text>
           </Pressable>
           {saveError && <Text style={styles.error}>{saveError}</Text>}
         </View>

@@ -7,6 +7,7 @@ import { isPastEvent, type EventListItem } from '@/lib/events';
 import { loadProfileSummary, type Attendee, type AttendingEvent, type ProfileRow } from '@/lib/profile-data';
 import { submitRating, type Credit } from '@/lib/ratings';
 import { bandForLevel, SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
+import { useI18n } from '@/lib/i18n';
 import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
 import { EventCard } from '@/components/event-card';
 import { ActionButton } from '@/components/action-button';
@@ -17,6 +18,7 @@ import { SkillBandSelector } from '@/components/skill-band-selector';
 import { SectionDivider } from '@/components/section-divider';
 
 export default function ProfileScreen() {
+  const { t } = useI18n();
   const { session, signOut } = useAuth();
   const router = useRouter();
   const [profile, setProfile] = useState<ProfileRow | null>(null);
@@ -98,7 +100,7 @@ export default function ProfileScreen() {
     try {
       await signOut();
     } catch (err) {
-      setSignOutError(err instanceof Error ? err.message : 'Sign-out failed');
+      setSignOutError(err instanceof Error ? err.message : t('profile.signOutFailed'));
     }
   }
 
@@ -109,7 +111,7 @@ export default function ProfileScreen() {
 
     const trimmedName = displayNameText.trim();
     if (!trimmedName) {
-      setSaveError('Display name is required.');
+      setSaveError(t('profile.displayNameRequired'));
       return;
     }
 
@@ -136,7 +138,7 @@ export default function ProfileScreen() {
       setProfile((prev) => (prev ? { ...prev, display_name: trimmedName } : prev));
       setSaveSuccess(true);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Could not save profile.');
+      setSaveError(err instanceof Error ? err.message : t('profile.couldNotSaveProfile'));
     } finally {
       setSavingProfile(false);
     }
@@ -150,7 +152,7 @@ export default function ProfileScreen() {
       if (error) throw error;
       setMyEvents((prev) => prev.filter((e) => e.id !== event.id));
     } catch (err) {
-      setRemoveError(err instanceof Error ? err.message : 'Could not remove event.');
+      setRemoveError(err instanceof Error ? err.message : t('profile.couldNotRemoveEvent'));
     } finally {
       setRemovingEventId(null);
     }
@@ -169,7 +171,7 @@ export default function ProfileScreen() {
       if (error) throw error;
       setAttendingEvents((prev) => prev.filter((e) => e.id !== event.id));
     } catch (err) {
-      setLeaveError(err instanceof Error ? err.message : 'Could not leave event.');
+      setLeaveError(err instanceof Error ? err.message : t('profile.couldNotLeaveEvent'));
     } finally {
       setLeavingEventId(null);
     }
@@ -208,18 +210,18 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.topRow}>
-        <Text style={styles.pageTitle}>🏸 Profile</Text>
+        <Text style={styles.pageTitle}>{t('profile.pageTitle')}</Text>
         <View style={styles.userCorner}>
           <View style={styles.userCornerTop}>
             <View style={styles.avatarSmall}>
               <Text style={styles.avatarEmojiSmall}>🏸</Text>
             </View>
             <Text style={styles.nameSmall} numberOfLines={1}>
-              {profile?.display_name ?? session?.user.email ?? 'Player'}
+              {profile?.display_name ?? session?.user.email ?? t('profile.playerFallback')}
             </Text>
           </View>
           <Pressable onPress={handleSignOut} hitSlop={8}>
-            <Text style={styles.signOutLink}>Sign out</Text>
+            <Text style={styles.signOutLink}>{t('profile.signOut')}</Text>
           </Pressable>
         </View>
       </View>
@@ -227,63 +229,63 @@ export default function ProfileScreen() {
       <SectionDivider />
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>My profile</Text>
+        <Text style={styles.sectionTitle}>{t('profile.sectionMyProfile')}</Text>
 
         <View style={styles.creditRow}>
-          <Text style={styles.label}>🌟 Credit</Text>
+          <Text style={styles.label}>{t('profile.creditLabel')}</Text>
           <CreditPill credit={session ? creditsByUserId[session.user.id] : undefined} />
         </View>
 
-        <Text style={styles.label}>😀 Display name</Text>
+        <Text style={styles.label}>{t('profile.displayNameLabel')}</Text>
         <TextInput
           style={styles.input}
           value={displayNameText}
           onChangeText={setDisplayNameText}
-          placeholder="How other players see you"
+          placeholder={t('profile.displayNamePlaceholder')}
           placeholderTextColor={Court.inkSecondary}
         />
 
-        <Text style={styles.label}>🏆 Skill level</Text>
+        <Text style={styles.label}>{t('profile.skillLevelLabel')}</Text>
         <SkillBandSelector selectedId={skillBandId} onSelect={setSkillBandId} />
 
-        <Text style={styles.label}>📝 About me</Text>
+        <Text style={styles.label}>{t('profile.aboutMeLabel')}</Text>
         <TextInput
           style={[styles.input, styles.multiline]}
           value={bioText}
           onChangeText={setBioText}
-          placeholder="Tell other players a bit about yourself"
+          placeholder={t('profile.aboutMePlaceholder')}
           placeholderTextColor={Court.inkSecondary}
           multiline
         />
 
-        <Text style={styles.label}>💬 Contact info</Text>
+        <Text style={styles.label}>{t('profile.contactInfoLabel')}</Text>
         <TextInput
           style={styles.input}
           value={contactInfoText}
           onChangeText={setContactInfoText}
-          placeholder="e.g. LINE ID, phone number"
+          placeholder={t('profile.contactInfoPlaceholder')}
           placeholderTextColor={Court.inkSecondary}
         />
 
         <ActionButton
-          label={savingProfile ? 'Saving...' : 'Save profile'}
+          label={savingProfile ? t('profile.saving') : t('profile.saveProfile')}
           onPress={handleSaveProfile}
           loading={savingProfile}
           style={styles.saveButton}
         />
         {saveError && <Text style={styles.error}>{saveError}</Text>}
-        {saveSuccess && !saveError && <Text style={styles.success}>Profile saved.</Text>}
+        {saveSuccess && !saveError && <Text style={styles.success}>{t('profile.profileSaved')}</Text>}
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Games I'm playing</Text>
+        <Text style={styles.sectionTitle}>{t('profile.sectionGamesPlaying')}</Text>
         <SectionDivider />
         {loading && <ActivityIndicator color={Court.green} />}
         {!loading && !loadError && attendingEvents.length === 0 && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyEmoji}>🏸</Text>
-            <Text style={styles.emptyTitle}>No games joined yet</Text>
-            <Text style={styles.emptySubtext}>Head to Discover to find a pickup game.</Text>
+            <Text style={styles.emptyTitle}>{t('profile.noGamesJoinedTitle')}</Text>
+            <Text style={styles.emptySubtext}>{t('profile.noGamesJoinedSubtext')}</Text>
           </View>
         )}
         {leaveError && <Text style={styles.error}>{leaveError}</Text>}
@@ -298,7 +300,7 @@ export default function ProfileScreen() {
                   action={
                     isPastEvent(event) ? undefined : (
                       <ActionButton
-                        label="Leave event"
+                        label={t('profile.leaveEvent')}
                         onPress={() => handleLeaveEvent(event)}
                         variant="danger"
                         loading={leavingEventId === event.id}
@@ -309,10 +311,10 @@ export default function ProfileScreen() {
               </Pressable>
               {event.organizer && session && (
                 <View style={styles.organizerCard}>
-                  <Text style={styles.organizerLabel}>🧑 Organized by {event.organizer.display_name}</Text>
+                  <Text style={styles.organizerLabel}>{t('profile.organizedBy', { name: event.organizer.display_name })}</Text>
                   <View style={styles.pillRowSmall}>
                     {event.organizer.skill_level != null && (
-                      <Pill label={bandForLevel(event.organizer.skill_level).label} tone="green" />
+                      <Pill label={t(`skillBands.${bandForLevel(event.organizer.skill_level).id}`)} tone="green" />
                     )}
                     <CreditPill credit={creditsByUserId[event.organizer_id]} />
                     {event.organizer.contact_info && <Pill label={event.organizer.contact_info} tone="feather" />}
@@ -339,15 +341,15 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>My events</Text>
+        <Text style={styles.sectionTitle}>{t('profile.sectionMyEvents')}</Text>
         <SectionDivider />
         {loading && <ActivityIndicator color={Court.green} />}
         {!loading && loadError && <Text style={styles.error}>{loadError}</Text>}
         {!loading && !loadError && myEvents.length === 0 && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyEmoji}>🏸</Text>
-            <Text style={styles.emptyTitle}>No games organized yet</Text>
-            <Text style={styles.emptySubtext}>Head to Create to host your first pickup game.</Text>
+            <Text style={styles.emptyTitle}>{t('profile.noGamesOrganizedTitle')}</Text>
+            <Text style={styles.emptySubtext}>{t('profile.noGamesOrganizedSubtext')}</Text>
           </View>
         )}
         {removeError && <Text style={styles.error}>{removeError}</Text>}
@@ -362,13 +364,13 @@ export default function ProfileScreen() {
                   action={
                     isPastEvent(event) ? (
                       <ActionButton
-                        label="Remove outdated event"
+                        label={t('profile.removeOutdatedEvent')}
                         onPress={() => handleRemoveOutdated(event)}
                         variant="danger"
                         loading={removingEventId === event.id}
                       />
                     ) : (
-                      <Text style={styles.upcomingLabel}>Upcoming</Text>
+                      <Text style={styles.upcomingLabel}>{t('profile.upcoming')}</Text>
                     )
                   }
                 />
@@ -403,6 +405,7 @@ function PersonRow({
   statusTone,
   decision,
   rating,
+  isGuest,
 }: {
   name: string;
   skillLevel: number | null;
@@ -412,20 +415,23 @@ function PersonRow({
   statusTone?: 'green' | 'neutral' | 'danger';
   decision?: { onAccept: () => void; onDecline: () => void; loading?: boolean };
   rating?: { value: number; onChange: (score: number) => void; disabled?: boolean };
+  isGuest?: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <View style={styles.rosterRow}>
       <Text style={styles.rosterName}>{name}</Text>
       <View style={styles.pillRowSmall}>
         {statusLabel && <Pill label={statusLabel} tone={statusTone ?? 'neutral'} />}
-        {skillLevel != null && <Pill label={bandForLevel(skillLevel).label} tone="feather" />}
+        {isGuest && <Pill label={t('profile.guestBadge')} tone="neutral" />}
+        {skillLevel != null && <Pill label={t(`skillBands.${bandForLevel(skillLevel).id}`)} tone="feather" />}
         <CreditPill credit={credit} />
         {contact && <Pill label={contact} tone="neutral" />}
       </View>
       {decision && (
         <View style={styles.decisionRow}>
-          <ActionButton label="Accept" onPress={decision.onAccept} loading={decision.loading} />
-          <ActionButton label="Decline" onPress={decision.onDecline} variant="danger" loading={decision.loading} />
+          <ActionButton label={t('profile.accept')} onPress={decision.onAccept} loading={decision.loading} />
+          <ActionButton label={t('profile.decline')} onPress={decision.onDecline} variant="danger" loading={decision.loading} />
         </View>
       )}
       {rating && <StarRating value={rating.value} onChange={rating.onChange} disabled={rating.disabled} />}
@@ -440,6 +446,7 @@ function PersonRow({
 // component fetching its own copy, which is what RatingRow, FellowParticipants,
 // and AttendeeRoster each used to do independently.
 function RatingRow({ value, canRate, onRate }: { value: number; canRate: boolean; onRate: (score: number) => Promise<void> }) {
+  const { t } = useI18n();
   const [error, setError] = useState<string | null>(null);
 
   if (!canRate) return null;
@@ -449,13 +456,13 @@ function RatingRow({ value, canRate, onRate }: { value: number; canRate: boolean
     try {
       await onRate(score);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save rating.');
+      setError(err instanceof Error ? err.message : t('profile.couldNotSaveRating'));
     }
   }
 
   return (
     <View style={styles.ratingRow}>
-      <Text style={styles.ratingLabel}>Rate the host</Text>
+      <Text style={styles.ratingLabel}>{t('profile.rateTheHost')}</Text>
       <StarRating value={value} onChange={handlePress} />
       {error && <Text style={styles.error}>{error}</Text>}
     </View>
@@ -483,6 +490,7 @@ function FellowParticipants({
   myRatings: Record<string, number>;
   onRate: (rateeId: string, score: number) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [error, setError] = useState<string | null>(null);
   const fellows = attendees.filter((row) => row.status === 'accepted' && row.user_id !== currentUserId);
 
@@ -493,21 +501,22 @@ function FellowParticipants({
     try {
       await onRate(rateeId, score);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save rating.');
+      setError(err instanceof Error ? err.message : t('profile.couldNotSaveRating'));
     }
   }
 
   return (
     <View style={styles.rosterCard}>
-      <Text style={styles.rosterTitle}>🏸 Also playing ({fellows.length})</Text>
+      <Text style={styles.rosterTitle}>{t('profile.alsoPlaying', { count: fellows.length })}</Text>
       {error && <Text style={styles.error}>{error}</Text>}
       {fellows.map((attendee) => (
         <PersonRow
           key={attendee.user_id}
-          name={attendee.profiles?.display_name ?? 'Unknown player'}
+          name={attendee.profiles?.display_name ?? t('profile.unknownPlayer')}
           skillLevel={attendee.profiles?.skill_level ?? null}
           contact={attendee.profiles?.contact_info}
           credit={credits[attendee.user_id]}
+          isGuest={attendee.profiles?.is_anonymous ?? false}
           rating={
             canRate
               ? { value: myRatings[attendee.user_id] ?? 0, onChange: (score) => handleRate(attendee.user_id, score) }
@@ -537,6 +546,7 @@ function AttendeeRoster({
   onRate: (rateeId: string, score: number) => Promise<void>;
   onDecide: (userId: string, status: 'accepted' | 'declined') => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [error, setError] = useState<string | null>(null);
   const [decidingUserId, setDecidingUserId] = useState<string | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
@@ -548,7 +558,7 @@ function AttendeeRoster({
     try {
       await onRate(rateeId, score);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save rating.');
+      setError(err instanceof Error ? err.message : t('profile.couldNotSaveRating'));
     }
   }
 
@@ -558,7 +568,7 @@ function AttendeeRoster({
     try {
       await onDecide(userId, status);
     } catch (err) {
-      setDecisionError(err instanceof Error ? err.message : 'Could not update request.');
+      setDecisionError(err instanceof Error ? err.message : t('profile.couldNotUpdateRequest'));
     } finally {
       setDecidingUserId(null);
     }
@@ -566,17 +576,24 @@ function AttendeeRoster({
 
   return (
     <View style={styles.rosterCard}>
-      <Text style={styles.rosterTitle}>👥 Requests ({attendees.length})</Text>
+      <Text style={styles.rosterTitle}>{t('profile.requestsCount', { count: attendees.length })}</Text>
       {error && <Text style={styles.error}>{error}</Text>}
       {decisionError && <Text style={styles.error}>{decisionError}</Text>}
       {attendees.map((attendee) => (
         <PersonRow
           key={attendee.user_id}
-          name={attendee.profiles?.display_name ?? 'Unknown player'}
+          name={attendee.profiles?.display_name ?? t('profile.unknownPlayer')}
           skillLevel={attendee.profiles?.skill_level ?? null}
           contact={attendee.profiles?.contact_info}
           credit={credits[attendee.user_id]}
-          statusLabel={attendee.status === 'accepted' ? 'Accepted' : attendee.status === 'declined' ? 'Declined' : 'Pending'}
+          isGuest={attendee.profiles?.is_anonymous ?? false}
+          statusLabel={
+            attendee.status === 'accepted'
+              ? t('profile.statusAccepted')
+              : attendee.status === 'declined'
+                ? t('profile.statusDeclined')
+                : t('profile.statusPending')
+          }
           statusTone={attendee.status === 'accepted' ? 'green' : attendee.status === 'declined' ? 'danger' : 'neutral'}
           decision={
             attendee.status === 'pending'

@@ -16,6 +16,7 @@
     "expo-glass-effect": "~57.0.1",
     "expo-image": "~57.0.1",
     "expo-linking": "~57.0.3",
+    "expo-localization": "~57.0.1",
     "expo-location": "~57.0.5",
     "expo-router": "~57.0.6",
     "expo-splash-screen": "~57.0.4",
@@ -63,18 +64,21 @@
     "test:participant-decision": "node --env-file=.env.local tests/integration/participant-decision.test.mjs",
     "test:ratings": "node --env-file=.env.local tests/integration/ratings.test.mjs",
     "test:discover-pagination": "node --env-file=.env.local tests/integration/discover-pagination.test.mjs",
+    "test:guest-signup": "node --env-file=.env.local tests/integration/guest-signup.test.mjs",
+    "test:guest-rls": "node --env-file=.env.local tests/integration/guest-rls.test.mjs",
     "test:integration": "node scripts/run-integration-tests.mjs",
     "test": "jest"
   },
   "private": true,
   "jest": {
     "preset": "jest-expo",
+    "testTimeout": 20000,
     "testMatch": [
-      "<rootDir>/tests/unit/**/*.[jt]s?(x)"
+      "**/tests/unit/**/*.[jt]s?(x)"
     ],
     "testPathIgnorePatterns": [
-      "/node_modules/",
-      "<rootDir>/tests/integration/"
+      "[\\\\/]node_modules[\\\\/]",
+      "tests[\\\\/]integration[\\\\/]"
     ],
     "modulePathIgnorePatterns": [
       "<rootDir>/.claude/worktrees/"

@@ -50,28 +50,28 @@ it('trims the title', () => {
 });
 
 const rejectionCases: [string, Partial<EventDraft>, string][] = [
-  ['empty title', { title: '' }, 'Title is required.'],
-  ['no venue', { venueId: null }, 'Please select or add a venue.'],
-  ['non-numeric headcount', { headcountText: 'abc' }, 'Number of people must be a positive whole number.'],
-  ['zero headcount', { headcountText: '0' }, 'Number of people must be a positive whole number.'],
-  ['negative fee', { feeText: '-5' }, 'Fee must be zero or a positive whole number.'],
-  ['fractional fee', { feeText: '9.5' }, 'Fee must be zero or a positive whole number.'],
-  ['zero duration', { durationMinutesText: '0' }, 'Duration must be a positive number of minutes.'],
-  ['from-band above to-band', { fromBandId: 'professional', toBandId: 'novice' }, 'Skill range "from" must not be above "to".'],
-  ['malformed start time', { startTimeText: '6:30pm' }, 'Start time must be in 24-hour HH:MM format, e.g. 18:30.'],
-  ['empty start time', { startTimeText: '' }, 'Start time must be in 24-hour HH:MM format, e.g. 18:30.'],
+  ['empty title', { title: '' }, 'titleRequired'],
+  ['no venue', { venueId: null }, 'venueRequired'],
+  ['non-numeric headcount', { headcountText: 'abc' }, 'headcountInvalid'],
+  ['zero headcount', { headcountText: '0' }, 'headcountInvalid'],
+  ['negative fee', { feeText: '-5' }, 'feeInvalid'],
+  ['fractional fee', { feeText: '9.5' }, 'feeInvalid'],
+  ['zero duration', { durationMinutesText: '0' }, 'durationInvalid'],
+  ['from-band above to-band', { fromBandId: 'professional', toBandId: 'novice' }, 'skillRangeInvalid'],
+  ['malformed start time', { startTimeText: '6:30pm' }, 'startTimeFormatInvalid'],
+  ['empty start time', { startTimeText: '' }, 'startTimeFormatInvalid'],
 ];
 
-it.each(rejectionCases)('rejects %s', (_name, overrides, expectedError) => {
+it.each(rejectionCases)('rejects %s', (_name, overrides, expectedErrorKey) => {
   const result = validateEventDraft({ ...validDraft, ...overrides }, NOW);
-  expect(result).toEqual({ ok: false, error: expectedError });
+  expect(result).toEqual({ ok: false, errorKey: expectedErrorKey });
 });
 
 it('rejects a start time that is not in the future, without any Date.now mocking', () => {
   // A full day before `now`, regardless of timezone - the point is this
   // needs no jest.spyOn(Date, 'now') at all, just the injected clock.
   const result = validateEventDraft({ ...validDraft, date: PAST_DATE, startTimeText: '10:00' }, NOW);
-  expect(result).toEqual({ ok: false, error: 'Start time must be in the future.' });
+  expect(result).toEqual({ ok: false, errorKey: 'startTimeMustBeFuture' });
 });
 
 it('accepts a start time in the future relative to the injected clock', () => {
@@ -101,7 +101,7 @@ it('rejects a start time the day after the last day of next year', () => {
   const { max } = getEventDateBounds(new Date(NOW));
   const dayAfterMax = new Date(max.getFullYear(), max.getMonth(), max.getDate() + 1);
   const result = validateEventDraft({ ...validDraft, date: dayAfterMax, startTimeText: '00:01' }, NOW);
-  expect(result).toEqual({ ok: false, error: 'Start time must be within this year or next year.' });
+  expect(result).toEqual({ ok: false, errorKey: 'startTimeOutOfRange' });
 });
 
 it('treats a blank fee as free (0)', () => {

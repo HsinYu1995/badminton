@@ -4,6 +4,7 @@ import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-nat
 import { supabase } from '@/lib/supabase';
 import { getEventDetail, type EventDetail } from '@/lib/profile-data';
 import { bandForLevel } from '@/lib/skill-bands';
+import { useI18n } from '@/lib/i18n';
 import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
 import { EventCard } from '@/components/event-card';
 import { Pill } from '@/components/pill';
@@ -15,6 +16,7 @@ import { Pill } from '@/components/pill';
 // see docs/superpowers/specs/2026-07-25-discovery-pagination-credit-splash-design.md.
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { t } = useI18n();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -45,7 +47,7 @@ export default function EventDetailScreen() {
   if (notFound || !event) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.notFound}>Event not found.</Text>
+        <Text style={styles.notFound}>{t('eventDetail.notFound')}</Text>
       </View>
     );
   }
@@ -56,16 +58,16 @@ export default function EventDetailScreen() {
 
       {event.description && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About this game</Text>
+          <Text style={styles.sectionTitle}>{t('eventDetail.aboutThisGame')}</Text>
           <Text style={styles.description}>{event.description}</Text>
         </View>
       )}
 
       {event.organizer && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🧑 Organized by {event.organizer.display_name}</Text>
+          <Text style={styles.sectionTitle}>{t('eventDetail.organizedBy', { name: event.organizer.display_name })}</Text>
           <View style={styles.pillRow}>
-            {event.organizer.skill_level != null && <Pill label={bandForLevel(event.organizer.skill_level).label} tone="green" />}
+            {event.organizer.skill_level != null && <Pill label={t(`skillBands.${bandForLevel(event.organizer.skill_level).id}`)} tone="green" />}
             {event.organizer.contact_info && <Pill label={event.organizer.contact_info} tone="feather" />}
           </View>
         </View>

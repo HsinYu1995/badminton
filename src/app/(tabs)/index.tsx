@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
-import { View, Text, FlatList, ActivityIndicator, StyleSheet } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { View, Text, FlatList, ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { ACTIVE_PARTICIPANT_STATUSES, computePlayerCounts, type EventListItem } from '@/lib/events';
 import { DISCOVER_PAGE_SIZE, fetchDiscoverPage, type Coordinates } from '@/lib/discover-events';
 import { Court, Font, Space } from '@/constants/badminton-theme';
+import { useI18n, pluralize } from '@/lib/i18n';
 import { EventCard } from '@/components/event-card';
 import { SearchBar } from '@/components/search-bar';
 import { ActionButton } from '@/components/action-button';
@@ -15,7 +16,9 @@ import { SectionDivider } from '@/components/section-divider';
 type ParticipantStatus = 'pending' | 'accepted' | 'declined';
 
 export default function DiscoverScreen() {
-  const { session } = useAuth();
+  const { t, locale } = useI18n();
+  const { session, signOut } = useAuth();
+  const router = useRouter();
   const [coords, setCoords] = useState<Coordinates>(null);
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [distances, setDistances] = useState<Record<string, number | null>>({});
@@ -40,6 +43,7 @@ export default function DiscoverScreen() {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [cancelingEventId, setCancelingEventId] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [guestExitError, setGuestExitError] = useState<string | null>(null);
 
   // Best-effort, once per mount - a declined/unavailable location just
   // means every distance_meters comes back null (time-only sort), never
@@ -138,7 +142,7 @@ export default function DiscoverScreen() {
       notePendingSpotsFilled(previousCounts, newCounts, newRequests);
       hasLoadedOnceRef.current = true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load events.');
+      setError(err instanceof Error ? err.message : t('discover.couldNotLoadEvents'));
     } finally {
       if (isFirstLoad) setLoading(false);
     }
@@ -169,7 +173,7 @@ export default function DiscoverScreen() {
       ]);
       notePendingSpotsFilled(previousCounts, newCounts, newRequests);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load more events.');
+      setError(err instanceof Error ? err.message : t('discover.couldNotLoadMoreEvents'));
     } finally {
       setLoadingMore(false);
     }
@@ -190,7 +194,7 @@ export default function DiscoverScreen() {
       // move here.
       setMyRequests((prev) => ({ ...prev, [event.id]: 'pending' }));
     } catch (err) {
-      setJoinError(err instanceof Error ? err.message : 'Could not join event.');
+      setJoinError(err instanceof Error ? err.message : t('discover.couldNotJoin'));
     } finally {
       setJoiningEventId(null);
     }
@@ -228,9 +232,18 @@ export default function DiscoverScreen() {
         setParticipantCounts((prev) => ({ ...prev, [event.id]: Math.max((prev[event.id] ?? 1) - 1, 1) }));
       }
     } catch (err) {
-      setCancelError(err instanceof Error ? err.message : 'Could not cancel request.');
+      setCancelError(err instanceof Error ? err.message : t('discover.couldNotCancel'));
     } finally {
       setCancelingEventId(null);
+    }
+  }
+
+  async function handleGuestExit() {
+    setGuestExitError(null);
+    try {
+      await signOut();
+    } catch (err) {
+      setGuestExitError(err instanceof Error ? err.message : t('discover.guestExitFailed'));
     }
   }
 
@@ -248,14 +261,20 @@ export default function DiscoverScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.title}>🏸 Discover</Text>
-        <Text style={styles.subtitle}>Find a pickup game near you</Text>
+        <Text style={styles.title}>{t('discover.headerTitle')}</Text>
+        <Text style={styles.subtitle}>{t('discover.subtitle')}</Text>
+        {session?.user.is_anonymous && (
+          <Pressable onPress={handleGuestExit} hitSlop={8}>
+            <Text style={styles.guestExitLink}>{t('discover.guestExit')}</Text>
+          </Pressable>
+        )}
+        {guestExitError && <Text style={styles.error}>{guestExitError}</Text>}
         <SectionDivider />
-        <SearchBar value={query} onChangeText={setQuery} placeholder="Search by title or venue" />
+        <SearchBar value={query} onChangeText={setQuery} placeholder={t('discover.searchPlaceholder')} />
       </View>
 
       {loading && <ActivityIndicator style={styles.spinner} color={Court.green} />}
-      {!loading && error && <Text style={styles.error}>Connection error: {error}</Text>}
+      {!loading && error && <Text style={styles.error}>{t('discover.connectionError', { error })}</Text>}
 
       {!loading && !error && (
         <FlatList
@@ -275,9 +294,9 @@ export default function DiscoverScreen() {
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Text style={styles.emptyEmoji}>{query ? '🔍' : '🏸'}</Text>
-              <Text style={styles.emptyTitle}>{query ? 'No matches' : 'No games yet'}</Text>
+              <Text style={styles.emptyTitle}>{query ? t('discover.noMatchesTitle') : t('discover.noGamesTitle')}</Text>
               <Text style={styles.emptySubtext}>
-                {query ? 'Try a different title or venue.' : 'Be the first to host a pickup game today.'}
+                {query ? t('discover.noMatchesSubtext') : t('discover.noGamesSubtext')}
               </Text>
             </View>
           }
@@ -286,56 +305,60 @@ export default function DiscoverScreen() {
             const isOwnEvent = session?.user.id === event.organizer_id;
             const requestStatus = myRequests[event.id];
             return (
-              <EventCard
-                event={event}
-                participantCount={participantCounts[event.id]}
-                distanceMeters={distances[event.id]}
-                action={
-                  isOwnEvent ? (
-                    <Text style={styles.ownEventLabel}>Your event</Text>
-                  ) : requestStatus === 'accepted' ? (
-                    <ActionButton
-                      label="Leave event"
-                      onPress={() => handleCancelRequest(event)}
-                      variant="danger"
-                      loading={cancelingEventId === event.id}
-                    />
-                  ) : requestStatus === 'pending' ? (
-                    <View style={styles.pendingAction}>
-                      {filledSinceApplied[event.id] > 0 && (
-                        <Text style={styles.filledNotice}>
-                          🔔 {filledSinceApplied[event.id]} {filledSinceApplied[event.id] === 1 ? 'spot' : 'spots'} filled
-                          since you applied
-                        </Text>
-                      )}
+              <Pressable onPress={() => router.push({ pathname: '/event/[id]', params: { id: event.id } })}>
+                <EventCard
+                  event={event}
+                  participantCount={participantCounts[event.id]}
+                  distanceMeters={distances[event.id]}
+                  action={
+                    isOwnEvent ? (
+                      <Text style={styles.ownEventLabel}>{t('discover.yourEvent')}</Text>
+                    ) : requestStatus === 'accepted' ? (
                       <ActionButton
-                        label="Cancel request"
+                        label={t('discover.leaveEvent')}
+                        onPress={() => handleCancelRequest(event)}
+                        variant="danger"
+                        loading={cancelingEventId === event.id}
+                      />
+                    ) : requestStatus === 'pending' ? (
+                      <View style={styles.pendingAction}>
+                        {filledSinceApplied[event.id] > 0 && (
+                          <Text style={styles.filledNotice}>
+                            {t('discover.spotsFilledNotice', {
+                              count: filledSinceApplied[event.id],
+                              spot: pluralize(filledSinceApplied[event.id], 'spot', 'spots', locale),
+                            })}
+                          </Text>
+                        )}
+                        <ActionButton
+                          label={t('discover.cancelRequest')}
+                          onPress={() => handleCancelRequest(event)}
+                          variant="outline"
+                          loading={cancelingEventId === event.id}
+                        />
+                      </View>
+                    ) : requestStatus === 'declined' ? (
+                      // A declined row can be self-deleted by its requester (see
+                      // participants_self_delete in 20260725064939_participants_self_delete.sql,
+                      // exercised by tests/integration/participant-decision.test.mjs) - reusing
+                      // handleCancelRequest here just removes the row, which brings the Join
+                      // button back so they can send a fresh request.
+                      <ActionButton
+                        label={t('discover.requestAgain')}
                         onPress={() => handleCancelRequest(event)}
                         variant="outline"
                         loading={cancelingEventId === event.id}
                       />
-                    </View>
-                  ) : requestStatus === 'declined' ? (
-                    // A declined row can be self-deleted by its requester (see
-                    // participants_self_delete in 20260725064939_participants_self_delete.sql,
-                    // exercised by tests/integration/participant-decision.test.mjs) - reusing
-                    // handleCancelRequest here just removes the row, which brings the Join
-                    // button back so they can send a fresh request.
-                    <ActionButton
-                      label="Request again"
-                      onPress={() => handleCancelRequest(event)}
-                      variant="outline"
-                      loading={cancelingEventId === event.id}
-                    />
-                  ) : (
-                    <ActionButton
-                      label="Join"
-                      onPress={() => handleJoin(event)}
-                      loading={joiningEventId === event.id}
-                    />
-                  )
-                }
-              />
+                    ) : (
+                      <ActionButton
+                        label={t('discover.join')}
+                        onPress={() => handleJoin(event)}
+                        loading={joiningEventId === event.id}
+                      />
+                    )
+                  }
+                />
+              </Pressable>
             );
           }}
         />
@@ -349,6 +372,7 @@ const styles = StyleSheet.create({
   header: { padding: Space.lg, gap: Space.sm, backgroundColor: Court.greenTint },
   title: { fontSize: 28, fontFamily: Font.displayBlack, color: Court.ink },
   subtitle: { color: Court.inkSecondary, marginBottom: Space.xs },
+  guestExitLink: { fontFamily: Font.display, fontSize: 12, color: Court.danger },
   spinner: { marginTop: Space.xl },
   list: { padding: Space.lg, paddingTop: 0 },
   emptyState: { alignItems: 'center', marginTop: Space.xl, gap: 4 },

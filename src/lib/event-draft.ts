@@ -26,7 +26,18 @@ export type ValidatedEvent = {
   skillMax: number;
 };
 
-export type ValidateEventDraftResult = { ok: true; event: ValidatedEvent } | { ok: false; error: string };
+export type ValidationErrorKey =
+  | 'titleRequired'
+  | 'venueRequired'
+  | 'headcountInvalid'
+  | 'feeInvalid'
+  | 'durationInvalid'
+  | 'skillRangeInvalid'
+  | 'startTimeFormatInvalid'
+  | 'startTimeMustBeFuture'
+  | 'startTimeOutOfRange';
+
+export type ValidateEventDraftResult = { ok: true; event: ValidatedEvent } | { ok: false; errorKey: ValidationErrorKey };
 
 function combineDateAndTimeText(date: Date, timeText: string): Date | null {
   const match = timeText.trim().match(START_TIME_PATTERN);
@@ -38,40 +49,40 @@ function combineDateAndTimeText(date: Date, timeText: string): Date | null {
 
 // Every rule the Create form enforces before an Event can be inserted,
 // pulled out of the screen so each rule is testable directly - stops at
-// the first failing rule and returns its message, matching the form's
+// the first failing rule and returns its errorKey, matching the form's
 // existing one-error-at-a-time display. `now` defaults to the real clock
 // but is injectable so the "must be in the future" rule is testable
 // without faking global Date state.
 export function validateEventDraft(draft: EventDraft, now: number = Date.now()): ValidateEventDraftResult {
   if (!draft.title.trim()) {
-    return { ok: false, error: 'Title is required.' };
+    return { ok: false, errorKey: 'titleRequired' };
   }
   if (!draft.venueId) {
-    return { ok: false, error: 'Please select or add a venue.' };
+    return { ok: false, errorKey: 'venueRequired' };
   }
   const headcountMax = parseInt(draft.headcountText, 10);
   if (!Number.isInteger(headcountMax) || headcountMax <= 0) {
-    return { ok: false, error: 'Number of people must be a positive whole number.' };
+    return { ok: false, errorKey: 'headcountInvalid' };
   }
   const fee = draft.feeText.trim() === '' ? 0 : Number(draft.feeText);
   if (!Number.isInteger(fee) || fee < 0) {
-    return { ok: false, error: 'Fee must be zero or a positive whole number.' };
+    return { ok: false, errorKey: 'feeInvalid' };
   }
   const durationMinutes = parseInt(draft.durationMinutesText, 10);
   if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
-    return { ok: false, error: 'Duration must be a positive number of minutes.' };
+    return { ok: false, errorKey: 'durationInvalid' };
   }
   const fromIndex = SKILL_BANDS.findIndex((band) => band.id === draft.fromBandId);
   const toIndex = SKILL_BANDS.findIndex((band) => band.id === draft.toBandId);
   if (fromIndex > toIndex) {
-    return { ok: false, error: 'Skill range "from" must not be above "to".' };
+    return { ok: false, errorKey: 'skillRangeInvalid' };
   }
   const startTime = combineDateAndTimeText(draft.date, draft.startTimeText);
   if (!startTime) {
-    return { ok: false, error: 'Start time must be in 24-hour HH:MM format, e.g. 18:30.' };
+    return { ok: false, errorKey: 'startTimeFormatInvalid' };
   }
   if (startTime.getTime() <= now) {
-    return { ok: false, error: 'Start time must be in the future.' };
+    return { ok: false, errorKey: 'startTimeMustBeFuture' };
   }
   // Mirrors DatePickerField's min/max (src/lib/date-range.ts) - that only
   // constrains what the calendar widget shows, not what a manually-typed
@@ -81,7 +92,7 @@ export function validateEventDraft(draft: EventDraft, now: number = Date.now()):
   const { max: maxDate } = getEventDateBounds(new Date(now));
   const maxStartTime = new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate(), 23, 59, 59, 999);
   if (startTime.getTime() > maxStartTime.getTime()) {
-    return { ok: false, error: 'Start time must be within this year or next year.' };
+    return { ok: false, errorKey: 'startTimeOutOfRange' };
   }
   const endTime = new Date(startTime.getTime() + durationMinutes * 60_000);
 
