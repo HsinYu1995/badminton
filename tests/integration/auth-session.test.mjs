@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import assert from 'node:assert';
-import { createSessionFromUrl } from '../src/lib/auth-session.ts';
+import { createSessionFromUrl } from '../../src/lib/auth-session.ts';
 
 const url = process.env.SUPABASE_URL;
 const anonKey = process.env.SUPABASE_ANON_KEY;

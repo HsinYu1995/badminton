@@ -320,7 +320,17 @@ export default function DiscoverScreen() {
                       />
                     </View>
                   ) : requestStatus === 'declined' ? (
-                    <ActionButton label={t('discover.declined')} onPress={() => {}} variant="muted" disabled />
+                    // A declined row can be self-deleted by its requester (see
+                    // participants_self_delete in 20260725064939_participants_self_delete.sql,
+                    // exercised by tests/integration/participant-decision.test.mjs) - reusing
+                    // handleCancelRequest here just removes the row, which brings the Join
+                    // button back so they can send a fresh request.
+                    <ActionButton
+                      label={t('discover.requestAgain')}
+                      onPress={() => handleCancelRequest(event)}
+                      variant="outline"
+                      loading={cancelingEventId === event.id}
+                    />
                   ) : (
                     <ActionButton
                       label={t('discover.join')}
