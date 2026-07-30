@@ -61,8 +61,14 @@ const mockAllRosterRows = [
 ];
 
 const mockLeaveEq = jest.fn(() => Promise.resolve({ error: null }));
-const mockDecideEq2 = jest.fn(() => Promise.resolve({ error: null }));
-const mockParticipantUpdate = jest.fn(() => ({ eq: () => ({ eq: mockDecideEq2 }) }));
+// handleDecide's real query chains .update().eq('event_id',...).eq('user_id',...).select('user_id') -
+// the .select() is what lets it detect an RLS-denied (zero-row) update instead of silently
+// "succeeding" (see the comment on ProfileScreen's handleDecide).
+const mockAcceptEq2 = jest.fn(() => ({ select: () => Promise.resolve({ data: [{ user_id: 'participant-1' }], error: null }) }));
+const mockAcceptEq1 = jest.fn((_column: string, _value: string) => ({ eq: mockAcceptEq2 }));
+const mockParticipantUpdate = jest.fn(() => ({
+  eq: mockAcceptEq1,
+}));
 
 jest.mock('@/lib/auth-context', () => ({
   AuthProvider: ({ children }: { children: unknown }) => children,
@@ -133,7 +139,7 @@ it(
     expect(screen.getByText('LINE: coachwu')).toBeTruthy();
 
     // My events: attendee roster
-    expect(await screen.findByText('👥 Players (1)')).toBeTruthy();
+    expect(await screen.findByText('👥 Requests (1)')).toBeTruthy();
     expect(screen.getByText('Newbie Player')).toBeTruthy();
     expect(screen.getByText('Pending')).toBeTruthy();
     // "Novice" also appears as a skill chip in "My profile" - two matches.
@@ -161,7 +167,7 @@ it(
     await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)/profile' });
 
     await screen.findByText(organizedEvent.title);
-    expect(await screen.findByText('👥 Players (1)')).toBeTruthy();
+    expect(await screen.findByText('👥 Requests (1)')).toBeTruthy();
     expect(screen.getByText('Pending')).toBeTruthy();
     expect(screen.getByText('1/8 players')).toBeTruthy();
 
@@ -169,14 +175,19 @@ it(
 
     await waitFor(() => expect(mockParticipantUpdate).toHaveBeenCalledTimes(1));
     expect(mockParticipantUpdate).toHaveBeenCalledWith({ status: 'accepted' });
-    await waitFor(() => expect(mockDecideEq2).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockAcceptEq1).toHaveBeenCalledTimes(1));
+    expect(mockAcceptEq1).toHaveBeenCalledWith('event_id', organizedEvent.id);
+    await waitFor(() => expect(mockAcceptEq2).toHaveBeenCalledTimes(1));
+    expect(mockAcceptEq2).toHaveBeenCalledWith('user_id', 'participant-1');
 
     expect(await screen.findByText('Accepted')).toBeTruthy();
     expect(screen.queryByText('Pending')).toBeNull();
     expect(screen.queryByText('Accept')).toBeNull();
     expect(screen.queryByText('Decline')).toBeNull();
-    // Both events now show 2/8: organizedEvent's request just got accepted,
-    // and attendingEvent already had the viewer's own accepted row.
+    // organizedEvent's count bumped from 1/8 to 2/8 - which now coincides
+    // with attendingEvent's already-accepted participant (also 2/8), so two
+    // elements match instead of one.
+    expect(screen.queryByText('1/8 players')).toBeNull();
     expect(screen.getAllByText('2/8 players')).toHaveLength(2);
   },
   15000

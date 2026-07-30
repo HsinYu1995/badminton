@@ -1,4 +1,5 @@
 import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
+import { reverseGeocodeAsync } from 'expo-location';
 
 const mockVenue = { id: 'venue-1', name: 'Fake Court', address: '123 Fake Rd' };
 const mockInsert = jest.fn(() => Promise.resolve({ error: null }));
@@ -81,6 +82,7 @@ it(
         skill_max: 18,
       })
     );
+    expect(reverseGeocodeAsync).not.toHaveBeenCalled();
   },
   15000
 );
