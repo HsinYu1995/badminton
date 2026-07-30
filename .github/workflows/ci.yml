@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # supabase/config.toml substitutes these from the environment even for disabled
+    # providers (Apple/Twilio/S3) - placeholders here just satisfy the substitution
+    # so `supabase start` doesn't fail on an unresolved env() reference. None of the
+    # test suites exercise real Apple/Twilio/S3/OpenAI integrations.
+    env:
+      OPENAI_API_KEY: ci-placeholder-unused
+      SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN: ci-placeholder-unused
+      SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-placeholder-unused
+      SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET: ci-placeholder-unused
+      S3_HOST: ci-placeholder-unused
+      S3_REGION: ci-placeholder-unused
+      S3_ACCESS_KEY: ci-placeholder-unused
+      S3_SECRET_KEY: ci-placeholder-unused
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      # expo-env.d.ts and .expo/types/router.d.ts are gitignored, generated files -
+      # tsc needs them (global.css's ambient module declaration, typed routes) but
+      # they're only written as a side effect of Expo's CLI/Metro starting, so we
+      # start it briefly just to produce them, then stop it.
+      - name: Generate Expo's gitignored type declarations
+        run: |
+          npx expo start --port 8090 &
+          EXPO_PID=$!
+          for i in $(seq 1 30); do
+            [ -f expo-env.d.ts ] && [ -f .expo/types/router.d.ts ] && break
+            sleep 1
+          done
+          kill "$EXPO_PID"
+          test -f expo-env.d.ts
+          test -f .expo/types/router.d.ts
+
+      # Pinned to match the exact version in package.json's devDependencies - the
+      # action's lockfile auto-detection installed a version whose CLI didn't
+      # recognize several config.toml keys this project's config actually uses.
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Write .env.local for the integration test scripts
+        run: |
+          eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=')"
+          cat <<EOF > .env.local
+          EXPO_PUBLIC_SUPABASE_URL=${API_URL}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}
+          SUPABASE_URL=${API_URL}
+          SUPABASE_ANON_KEY=${ANON_KEY}
+          SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
+          EOF
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        # A fresh `npm ci` leaves Jest's own transform cache cold, which makes the
+        # first jest-expo run in a checkout genuinely slower than local runs with a
+        # warm cache - bump the per-test timeout so that doesn't false-fail here.
+        run: npx jest --ci --testTimeout=60000
+
+      - name: Integration tests
+        run: npm run test:integration
