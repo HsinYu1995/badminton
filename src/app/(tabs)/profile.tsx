@@ -182,9 +182,20 @@ export default function ProfileScreen() {
   // only on acceptance, bumps that event's displayed player count by 1 - the
   // one moment a request starts occupying a spot (see
   // ACTIVE_PARTICIPANT_STATUSES in src/lib/events.ts).
+  //
+  // RLS silently matches zero rows rather than erroring when the organizer
+  // check fails (or the row was already decided) - .select('user_id') plus
+  // the length check below is what turns that into a visible error instead
+  // of an optimistic update the database never actually made.
   async function handleDecide(eventId: string, userId: string, status: 'accepted' | 'declined') {
-    const { error } = await supabase.from('event_participants').update({ status }).eq('event_id', eventId).eq('user_id', userId);
+    const { data: updated, error } = await supabase
+      .from('event_participants')
+      .update({ status })
+      .eq('event_id', eventId)
+      .eq('user_id', userId)
+      .select('user_id');
     if (error) throw error;
+    if (!updated?.length) throw new Error('This request is no longer available.');
     setRostersByEventId((prev) => ({
       ...prev,
       [eventId]: (prev[eventId] ?? []).map((row) => (row.user_id === userId ? { ...row, status } : row)),
@@ -555,7 +566,7 @@ function AttendeeRoster({
 
   return (
     <View style={styles.rosterCard}>
-      <Text style={styles.rosterTitle}>👥 Players ({attendees.length})</Text>
+      <Text style={styles.rosterTitle}>👥 Requests ({attendees.length})</Text>
       {error && <Text style={styles.error}>{error}</Text>}
       {decisionError && <Text style={styles.error}>{decisionError}</Text>}
       {attendees.map((attendee) => (

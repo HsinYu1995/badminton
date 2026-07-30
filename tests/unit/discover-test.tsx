@@ -88,9 +88,10 @@ it(
     expect(screen.getByText(/Fake Gym/)).toBeTruthy();
     expect(screen.getByText(/Free/)).toBeTruthy();
     expect(screen.getByText(/NT\$150/)).toBeTruthy();
-    // event-1 has 1 accepted participant row in the mock, plus the organizer
-    // who has no event_participants row of their own; event-2 has none, so
-    // it shows just the organizer.
+    // event-1 has 1 accepted participant row in the mock (a real
+    // accepted-only query would never return a pending row), plus the
+    // organizer who has no event_participants row of their own; event-2 has
+    // none, so it shows just the organizer.
     expect(screen.getByText('2/8 players')).toBeTruthy();
     expect(screen.getByText('1/4 players')).toBeTruthy();
   },
