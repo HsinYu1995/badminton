@@ -1,4 +1,4 @@
-import { renderRouter, screen } from 'expo-router/testing-library';
+import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 const mockEvents = [
   {
@@ -28,6 +28,10 @@ const mockEvents = [
     distance_meters: null,
   },
 ];
+
+// The event detail screen's own fetch (getEventDetail) - only event-1 is
+// ever tapped in this file's tests, so only its detail response is set up.
+const eventDetailDescription = 'Bring your own racket and water.';
 
 // A stable reference matters here: DiscoverScreen's loadEvents useCallback
 // depends on [session], which feeds a useFocusEffect. A mock that returns a
@@ -72,6 +76,23 @@ jest.mock('@/lib/supabase', () => ({
           }),
         };
       }
+      // Fetched by the event detail screen (getEventDetail) after a card tap.
+      if (table === 'events') {
+        return {
+          select: () => ({
+            eq: () => ({
+              single: () =>
+                Promise.resolve({
+                  data: { ...mockEvents[0], description: eventDetailDescription, venues: { name: mockEvents[0].venue_name } },
+                  error: null,
+                }),
+            }),
+          }),
+        };
+      }
+      if (table === 'profiles') {
+        return { select: () => ({ in: () => Promise.resolve({ data: [], error: null }) }) };
+      }
       throw new Error(`Unexpected table in mock: ${table}`);
     },
   },
@@ -94,6 +115,24 @@ it(
     // none, so it shows just the organizer.
     expect(screen.getByText('2/8 players')).toBeTruthy();
     expect(screen.getByText('1/4 players')).toBeTruthy();
+    // A real (non-anonymous) session never shows the guest-exit control.
+    expect(screen.queryByText('Exit guest mode')).toBeNull();
+  },
+  15000
+);
+
+it(
+  'navigates to the event detail screen when a Discover event card is tapped',
+  async () => {
+    await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)' });
+
+    await screen.findByText(mockEvents[0].title);
+    await fireEvent.press(screen.getByText(mockEvents[0].title));
+
+    // The detail screen fetches and shows the event's description, which
+    // never appears on the Discover list card - confirms we actually landed
+    // on /event/[id], not just re-rendered the same card.
+    expect(await screen.findByText(eventDetailDescription)).toBeTruthy();
   },
   15000
 );

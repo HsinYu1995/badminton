@@ -64,6 +64,8 @@
     "test:participant-decision": "node --env-file=.env.local tests/integration/participant-decision.test.mjs",
     "test:ratings": "node --env-file=.env.local tests/integration/ratings.test.mjs",
     "test:discover-pagination": "node --env-file=.env.local tests/integration/discover-pagination.test.mjs",
+    "test:guest-signup": "node --env-file=.env.local tests/integration/guest-signup.test.mjs",
+    "test:guest-rls": "node --env-file=.env.local tests/integration/guest-rls.test.mjs",
     "test": "jest"
   },
   "private": true,

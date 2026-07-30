@@ -21,6 +21,7 @@ export const en = {
   'auth.signIn': 'Sign in',
   'auth.signInWithGoogle': 'Sign in with Google',
   'auth.signInFailed': 'Sign-in failed',
+  'auth.continueAsGuest': 'Continue as guest',
 
   'tabs.discover': 'Discover',
   'tabs.create': 'Create',
@@ -79,6 +80,8 @@ export const en = {
   'discover.requestAgain': 'Request again',
   'discover.join': 'Join',
   'discover.spotsFilledNotice': '🔔 {count} {spot} filled since you applied',
+  'discover.guestExit': 'Exit guest mode',
+  'discover.guestExitFailed': 'Could not exit guest mode',
 
   'eventCard.past': 'Past',
   'eventCard.venueTbd': 'Venue TBD',
@@ -136,6 +139,7 @@ export const en = {
   'profile.statusAccepted': 'Accepted',
   'profile.statusDeclined': 'Declined',
   'profile.statusPending': 'Pending',
+  'profile.guestBadge': 'Guest',
 
   'venuePicker.locationPermissionRequired': 'Location permission is required to add a venue.',
   'venuePicker.couldNotGetLocation': 'Could not get current location.',
@@ -161,6 +165,13 @@ export const en = {
 
   'splash.title': 'Badminton',
   'splash.subtitle': 'Finding your next game...',
+
+  'guestSkillPick.headerTitle': 'Pick your skill level',
+  'guestSkillPick.title': "What's your skill level?",
+  'guestSkillPick.subtitle': "This helps the organizer know if you're a good fit before accepting your request.",
+  'guestSkillPick.continue': 'Continue',
+  'guestSkillPick.saving': 'Saving...',
+  'guestSkillPick.couldNotSave': 'Could not save your skill level.',
 };
 
 export type Translations = typeof en;
@@ -169,6 +180,7 @@ export const zhTW: Translations = {
   'auth.signIn': '登入',
   'auth.signInWithGoogle': '使用 Google 登入',
   'auth.signInFailed': '登入失敗',
+  'auth.continueAsGuest': '以訪客身分繼續',
 
   'tabs.discover': '探索',
   'tabs.create': '建立',
@@ -227,6 +239,8 @@ export const zhTW: Translations = {
   'discover.requestAgain': '重新申請',
   'discover.join': '加入',
   'discover.spotsFilledNotice': '🔔 自您申請後已有 {count} 個空位被填滿',
+  'discover.guestExit': '結束訪客模式',
+  'discover.guestExitFailed': '無法結束訪客模式',
 
   'eventCard.past': '已結束',
   'eventCard.venueTbd': '場地待定',
@@ -284,6 +298,7 @@ export const zhTW: Translations = {
   'profile.statusAccepted': '已接受',
   'profile.statusDeclined': '已婉拒',
   'profile.statusPending': '待審核',
+  'profile.guestBadge': '訪客',
 
   'venuePicker.locationPermissionRequired': '新增場地需要定位權限。',
   'venuePicker.couldNotGetLocation': '無法取得目前位置。',
@@ -309,6 +324,13 @@ export const zhTW: Translations = {
 
   'splash.title': '羽球',
   'splash.subtitle': '正在尋找您的下一場球局...',
+
+  'guestSkillPick.headerTitle': '選擇您的程度',
+  'guestSkillPick.title': '您的程度是？',
+  'guestSkillPick.subtitle': '這能幫助主辦人判斷是否適合接受您的申請。',
+  'guestSkillPick.continue': '繼續',
+  'guestSkillPick.saving': '儲存中...',
+  'guestSkillPick.couldNotSave': '無法儲存您的程度。',
 };
 
 const DICTIONARIES: Record<LocaleTag, Translations> = { 'en-US': en, 'zh-TW': zhTW };

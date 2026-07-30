@@ -39,25 +39,25 @@ const mockAllRosterRows = [
     event_id: organizedEvent.id,
     user_id: 'newbie-id',
     status: 'pending',
-    profiles: { display_name: 'Newbie', skill_level: 2, profile_contact: null },
+    profiles: { display_name: 'Newbie', skill_level: 2, is_anonymous: false, profile_contact: null },
   },
   {
     event_id: organizedEvent.id,
     user_id: 'vet-id',
     status: 'accepted',
-    profiles: { display_name: 'Vet', skill_level: 10, profile_contact: null },
+    profiles: { display_name: 'Vet', skill_level: 10, is_anonymous: false, profile_contact: null },
   },
   {
     event_id: attendingEvent.id,
     user_id: 'fake-user-id',
     status: 'accepted',
-    profiles: { display_name: 'Fake Player', skill_level: 8, profile_contact: null },
+    profiles: { display_name: 'Fake Player', skill_level: 8, is_anonymous: false, profile_contact: null },
   },
   {
     event_id: attendingEvent.id,
     user_id: 'buddy-id',
     status: 'accepted',
-    profiles: { display_name: 'Buddy', skill_level: 7, profile_contact: null },
+    profiles: { display_name: 'Buddy', skill_level: 7, is_anonymous: false, profile_contact: null },
   },
 ];
 

@@ -19,14 +19,17 @@ function SplashScreenController({ fontsLoaded }: { fontsLoaded: boolean }) {
 }
 
 function RootNavigator() {
-  const { session } = useAuth();
+  const { session, needsGuestSkillPick } = useAuth();
   const { t } = useI18n();
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={!!session}>
+      <Stack.Protected guard={!!session && !needsGuestSkillPick}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="event/[id]" options={{ headerShown: true, title: t('eventDetail.headerTitle') }} />
+      </Stack.Protected>
+      <Stack.Protected guard={!!session && !!needsGuestSkillPick}>
+        <Stack.Screen name="guest-skill" options={{ headerShown: true, title: t('guestSkillPick.headerTitle') }} />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="(auth)" />
@@ -36,8 +39,12 @@ function RootNavigator() {
 }
 
 function AppBody({ fontsLoaded }: { fontsLoaded: boolean }) {
-  const { isLoading } = useAuth();
-  const ready = fontsLoaded && !isLoading;
+  const { isLoading, needsGuestSkillPick } = useAuth();
+  // needsGuestSkillPick is null only while it's still resolving for a fresh
+  // anonymous session (see auth-context.tsx) - withheld from rendering the
+  // same way fontsLoaded/isLoading already are, so RootNavigator never
+  // flashes `(tabs)` before flipping to the guest-skill screen.
+  const ready = fontsLoaded && !isLoading && needsGuestSkillPick !== null;
 
   return ready ? <RootNavigator /> : <AppSplashScreen progress={computeSplashProgress(fontsLoaded, isLoading)} />;
 }
