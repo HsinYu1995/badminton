@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Text, TextInput, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { DateTimePicker } from '@expo/ui/community/datetime-picker';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { type SkillBandId } from '@/lib/skill-bands';
@@ -12,6 +11,7 @@ import { ActionButton } from '@/components/action-button';
 import { SkillBandSelector } from '@/components/skill-band-selector';
 import { SectionDivider } from '@/components/section-divider';
 import { FieldCard } from '@/components/field-card';
+import { DatePickerField } from '@/components/date-picker-field';
 
 export default function CreateEventScreen() {
   const { session } = useAuth();
@@ -112,7 +112,7 @@ export default function CreateEventScreen() {
       <TextInput style={styles.input} value={feeText} onChangeText={setFeeText} keyboardType="number-pad" />
 
       <FieldCard icon="📅" label="Date">
-        <DateTimePicker mode="date" value={date} onValueChange={(_event, newDate) => setDate(newDate)} presentation="inline" display="spinner" />
+        <DatePickerField value={date} onChange={setDate} />
       </FieldCard>
 
       <Text style={styles.label}>🕒 Start time (24-hour, e.g. 18:30)</Text>

@@ -14,7 +14,12 @@ const eventRow = {
   venues: { name: 'Riverside Court' },
 };
 
-const organizerProfile = { id: 'organizer-1', display_name: 'Coach Wu', skill_level: 13, contact_info: 'LINE: coachwu' };
+const organizerProfileRow = {
+  id: 'organizer-1',
+  display_name: 'Coach Wu',
+  skill_level: 13,
+  profile_contact: { contact_info: 'LINE: coachwu' },
+};
 
 const FAKE_SESSION = { user: { id: 'fake-user-id' } };
 
@@ -35,7 +40,7 @@ jest.mock('@/lib/supabase', () => ({
         return { select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: eventRow, error: null }) }) }) };
       }
       if (table === 'profiles') {
-        return { select: () => ({ in: () => Promise.resolve({ data: [organizerProfile], error: null }) }) };
+        return { select: () => ({ in: () => Promise.resolve({ data: [organizerProfileRow], error: null }) }) };
       }
       throw new Error(`Unexpected table in mock: ${table}`);
     },

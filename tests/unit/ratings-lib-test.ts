@@ -1,4 +1,4 @@
-import { formatCredit, getCredits, getMyRatings, submitRating } from '@/lib/ratings';
+import { formatCredit, getCredits, getMyRatingsForEvents, submitRating } from '@/lib/ratings';
 
 it('formats "Unrated" when there is no credit', () => {
   expect(formatCredit(undefined)).toBe('Unrated');
@@ -59,18 +59,19 @@ it('returns an empty object without querying for an empty id list', async () => 
   expect(await getCredits(supabase, [])).toEqual({});
 });
 
-it('maps this rater\'s existing ratings for an event, keyed by ratee', async () => {
+it("maps this rater's existing ratings across multiple events, keyed by event then ratee", async () => {
   const supabase = fakeSupabase({
     from: (table) => {
       expect(table).toBe('ratings');
       return {
         select: () => ({
           eq: () => ({
-            eq: () =>
+            in: () =>
               Promise.resolve({
                 data: [
-                  { ratee_id: 'ratee-1', score: 4 },
-                  { ratee_id: 'ratee-2', score: 2 },
+                  { event_id: 'event-1', ratee_id: 'ratee-1', score: 4 },
+                  { event_id: 'event-1', ratee_id: 'ratee-2', score: 2 },
+                  { event_id: 'event-2', ratee_id: 'ratee-1', score: 5 },
                 ],
                 error: null,
               }),
@@ -80,7 +81,19 @@ it('maps this rater\'s existing ratings for an event, keyed by ratee', async () 
     },
   });
 
-  expect(await getMyRatings(supabase, 'event-1', 'rater-1')).toEqual({ 'ratee-1': 4, 'ratee-2': 2 });
+  expect(await getMyRatingsForEvents(supabase, ['event-1', 'event-2'], 'rater-1')).toEqual({
+    'event-1': { 'ratee-1': 4, 'ratee-2': 2 },
+    'event-2': { 'ratee-1': 5 },
+  });
+});
+
+it('returns an empty object without querying for an empty event id list', async () => {
+  const supabase = fakeSupabase({
+    from: () => {
+      throw new Error('should not be called');
+    },
+  });
+  expect(await getMyRatingsForEvents(supabase, [], 'rater-1')).toEqual({});
 });
 
 it('submits a rating via upsert on the (event_id, rater_id, ratee_id) conflict target', async () => {

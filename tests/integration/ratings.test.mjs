@@ -123,7 +123,34 @@ async function main() {
   assert.strictEqual(Number(creditCarol.credit), 4, 'Carol credit should average (5+3)/2 = 4.00');
   assert.strictEqual(Number(creditCarol.ratings_count), 2);
 
-  console.log('PASS: ratings can be updated by their own rater (not others), and profile_credit aggregates correctly and is absent when unrated');
+  // "Rate the host" (see 20260726130000_ratings_organizer_ratee.sql): Bob,
+  // an accepted participant, rates Alice, the organizer - the organizer has
+  // no event_participants row of their own (CONTEXT.md's Player count), so
+  // this only works because the ratee-eligibility check now also accepts
+  // "ratee is the event's organizer", not just "ratee is an accepted
+  // participant".
+  const { error: rateHostErr } = await bob.client
+    .from('ratings')
+    .insert({ event_id: event.id, rater_id: bob.userId, ratee_id: alice.userId, score: 5 });
+  assert(!rateHostErr, `Bob rating the organizer (Alice) failed: ${rateHostErr?.message}`);
+
+  const { data: creditAlice } = await admin.from('profile_credit').select('*').eq('profile_id', alice.userId).single();
+  assert.strictEqual(Number(creditAlice.credit), 5, "Alice's credit should reflect Bob's rating of her as host");
+
+  // Self-rating is never legitimate - blocked regardless of role.
+  const { error: selfRateErr } = await bob.client
+    .from('ratings')
+    .insert({ event_id: event.id, rater_id: bob.userId, ratee_id: bob.userId, score: 5 });
+  assert(selfRateErr, 'A participant rating themselves should be rejected');
+
+  const { error: organizerSelfRateErr } = await alice.client
+    .from('ratings')
+    .insert({ event_id: event.id, rater_id: alice.userId, ratee_id: alice.userId, score: 5 });
+  assert(organizerSelfRateErr, 'An organizer rating themselves should be rejected');
+
+  console.log(
+    'PASS: ratings can be updated by their own rater (not others), profile_credit aggregates correctly and is absent when unrated, an accepted participant can rate the event organizer, and self-rating is always blocked'
+  );
 }
 
 main()

@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import assert from 'node:assert';
-import { SKILL_BANDS, bandForLevel } from '../src/lib/skill-bands.ts';
+import { SKILL_BANDS, bandForLevel } from '../../src/lib/skill-bands.ts';
 
 const url = process.env.SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

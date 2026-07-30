@@ -88,6 +88,23 @@ async function main() {
     });
   assert(negativeFeeErr, 'negative fee should be rejected by the fee >= 0 check constraint');
 
+  const { error: invertedSkillRangeErr } = await alice.client
+    .from('events')
+    .insert({
+      organizer_id: alice.userId,
+      venue_id: venue.id,
+      title: 'Inverted Skill Range Event',
+      start_time: new Date(Date.now() + 3600_000).toISOString(),
+      end_time: new Date(Date.now() + 7200_000).toISOString(),
+      headcount_max: 8,
+      skill_min: 13,
+      skill_max: 3,
+    });
+  assert(
+    invertedSkillRangeErr,
+    'skill_min > skill_max should be rejected by the skill_min <= skill_max check constraint - client-side validation (validateEventDraft) forbids this too, but the database must hold the line on its own for any insert that bypasses the app'
+  );
+
   const { error: forgedOrganizerErr } = await bob.client
     .from('events')
     .insert({

@@ -32,18 +32,39 @@ const attendingEvent = {
 const ownProfile = { display_name: 'Fake Player', skill_level: 8, bio: null, contact_info: null };
 const organizerProfile = { id: 'organizer-1', display_name: 'Coach Wu', skill_level: 13, contact_info: null };
 
-const organizedRoster = [
-  { user_id: 'newbie-id', status: 'pending', profiles: { display_name: 'Newbie', skill_level: 2, contact_info: null } },
-  { user_id: 'vet-id', status: 'accepted', profiles: { display_name: 'Vet', skill_level: 10, contact_info: null } },
-];
-const attendingRoster = [
-  { user_id: 'fake-user-id', status: 'accepted', profiles: { display_name: 'Fake Player', skill_level: 8, contact_info: null } },
-  { user_id: 'buddy-id', status: 'accepted', profiles: { display_name: 'Buddy', skill_level: 7, contact_info: null } },
+// Raw rows as returned by the single batched event_participants query (see
+// getEventRosters) covering both events at once.
+const mockAllRosterRows = [
+  {
+    event_id: organizedEvent.id,
+    user_id: 'newbie-id',
+    status: 'pending',
+    profiles: { display_name: 'Newbie', skill_level: 2, profile_contact: null },
+  },
+  {
+    event_id: organizedEvent.id,
+    user_id: 'vet-id',
+    status: 'accepted',
+    profiles: { display_name: 'Vet', skill_level: 10, profile_contact: null },
+  },
+  {
+    event_id: attendingEvent.id,
+    user_id: 'fake-user-id',
+    status: 'accepted',
+    profiles: { display_name: 'Fake Player', skill_level: 8, profile_contact: null },
+  },
+  {
+    event_id: attendingEvent.id,
+    user_id: 'buddy-id',
+    status: 'accepted',
+    profiles: { display_name: 'Buddy', skill_level: 7, profile_contact: null },
+  },
 ];
 
 const creditRows = [
   { profile_id: 'organizer-1', credit: '5.00', ratings_count: 1 },
   { profile_id: 'vet-id', credit: '4.00', ratings_count: 2 },
+  { profile_id: 'fake-user-id', credit: '4.50', ratings_count: 3 },
 ];
 
 const FAKE_SESSION = { user: { id: 'fake-user-id' } };
@@ -81,21 +102,18 @@ jest.mock('@/lib/supabase', () => ({
       if (table === 'event_participants') {
         return {
           select: () => ({
-            eq: (column: string, value: string) => {
-              if (column === 'user_id') {
-                return { eq: () => Promise.resolve({ data: [{ event_id: attendingEvent.id }], error: null }) };
-              }
-              if (value === organizedEvent.id) return Promise.resolve({ data: organizedRoster, error: null });
-              if (value === attendingEvent.id) return Promise.resolve({ data: attendingRoster, error: null });
-              return Promise.resolve({ data: [], error: null });
-            },
-            in: () => ({ in: () => Promise.resolve({ data: [], error: null }) }),
+            eq: (column: string) =>
+              column === 'user_id'
+                ? { eq: () => Promise.resolve({ data: [{ event_id: attendingEvent.id }], error: null }) }
+                : Promise.resolve({ data: [], error: null }),
+            // getEventRosters' single batched roster query: .in('event_id', ids).
+            in: () => Promise.resolve({ data: mockAllRosterRows, error: null }),
           }),
         };
       }
       if (table === 'ratings') {
         return {
-          select: () => ({ eq: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) }),
+          select: () => ({ eq: () => ({ in: () => Promise.resolve({ data: [], error: null }) }) }),
           upsert: mockRatingsUpsert,
         };
       }
@@ -114,6 +132,9 @@ it(
 
     await screen.findByText(organizedEvent.title);
     expect(screen.getByText(attendingEvent.title)).toBeTruthy();
+
+    // The signed-in player's own read-only Credit, shown on "My profile".
+    expect(await screen.findByText('★ 4.5 (3)')).toBeTruthy();
 
     // Host (organizer of the attending event) - credit + "Rate the host".
     expect(await screen.findByText('★ 5.0 (1)')).toBeTruthy();

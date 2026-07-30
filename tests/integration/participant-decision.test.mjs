@@ -42,11 +42,7 @@ async function createEvent(organizerClient, organizerId, venueId, title) {
 // (always 1, no row of their own) plus every 'accepted' event_participants
 // row - see src/lib/events.ts's ACTIVE_PARTICIPANT_STATUSES.
 async function playerCount(eventId) {
-  const { data, error } = await admin
-    .from('event_participants')
-    .select('event_id')
-    .eq('event_id', eventId)
-    .eq('status', 'accepted');
+  const { data, error } = await admin.from('event_participants').select('event_id').eq('event_id', eventId).eq('status', 'accepted');
   assert(!error, `player count query failed: ${error?.message}`);
   return 1 + data.length;
 }
@@ -89,10 +85,7 @@ async function main() {
     .eq('event_id', event.id)
     .eq('user_id', participant.userId)
     .single();
-  assert(
-    selfAcceptErr || afterSelfAcceptAttempt.status === 'pending',
-    'RLS should block a requester from accepting their own request'
-  );
+  assert(selfAcceptErr || afterSelfAcceptAttempt.status === 'pending', 'RLS should block a requester from accepting their own request');
 
   // A different organizer cannot decide on this request.
   const { error: wrongOrganizerErr } = await otherOrganizer.client
@@ -137,11 +130,7 @@ async function main() {
     .eq('user_id', participant.userId)
     .single();
   assert(!participantReadErr, `participant read-back failed: ${participantReadErr?.message}`);
-  assert.strictEqual(
-    seenByParticipant.status,
-    'accepted',
-    "the participant's own view should show the accepted status"
-  );
+  assert.strictEqual(seenByParticipant.status, 'accepted', "the participant's own view should show the accepted status");
   assert.strictEqual(seenByParticipant.events.title, 'Decision Test Game');
 
   assert.strictEqual(await playerCount(event.id), 2, 'an accepted request must occupy a spot');

@@ -27,15 +27,23 @@ export function formatCredit(credit: Credit | undefined): string {
   return `★ ${credit.credit.toFixed(1)} (${credit.ratingsCount})`;
 }
 
-// This viewer's own previously-given scores for one event, keyed by ratee -
-// lets the UI pre-fill each StarRating with what was already given, so
-// "can be updated later" is something the user can actually see and change,
-// not just something the upsert silently supports.
-export async function getMyRatings(supabase: SupabaseClient, eventId: string, raterId: string): Promise<Record<string, number>> {
-  const { data } = await supabase.from('ratings').select('ratee_id, score').eq('event_id', eventId).eq('rater_id', raterId);
-  const result: Record<string, number> = {};
-  for (const row of (data as { ratee_id: string; score: number }[] | null) ?? []) {
-    result[row.ratee_id] = row.score;
+// This viewer's own previously-given scores across every one of the given
+// events at once, keyed by event then ratee - lets the UI pre-fill each
+// StarRating with what was already given, so "can be updated later" is
+// something the user can actually see and change, not just something the
+// upsert silently supports. Batched (one query for every event the Profile
+// screen cares about) rather than one call per event card - see
+// loadProfileSummary, the only caller.
+export async function getMyRatingsForEvents(
+  supabase: SupabaseClient,
+  eventIds: string[],
+  raterId: string
+): Promise<Record<string, Record<string, number>>> {
+  if (eventIds.length === 0) return {};
+  const { data } = await supabase.from('ratings').select('event_id, ratee_id, score').eq('rater_id', raterId).in('event_id', eventIds);
+  const result: Record<string, Record<string, number>> = {};
+  for (const row of (data as { event_id: string; ratee_id: string; score: number }[] | null) ?? []) {
+    (result[row.event_id] ??= {})[row.ratee_id] = row.score;
   }
   return result;
 }
