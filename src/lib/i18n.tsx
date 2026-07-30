@@ -18,6 +18,8 @@ export function pluralize(count: number, singular: string, plural: string, local
 }
 
 export const en = {
+  'auth.heroTitle': 'Step onto the court',
+  'auth.heroSubtitle': 'Find pickup badminton games near you.',
   'auth.signIn': 'Sign in',
   'auth.signInWithGoogle': 'Sign in with Google',
   'auth.signInFailed': 'Sign-in failed',
@@ -177,6 +179,8 @@ export const en = {
 export type Translations = typeof en;
 
 export const zhTW: Translations = {
+  'auth.heroTitle': '準備上場',
+  'auth.heroSubtitle': '尋找附近的臨時球局。',
   'auth.signIn': '登入',
   'auth.signInWithGoogle': '使用 Google 登入',
   'auth.signInFailed': '登入失敗',
