@@ -1,4 +1,5 @@
 import { validateEventDraft, type EventDraft } from '@/lib/event-draft';
+import { getEventDateBounds } from '@/lib/date-range';
 
 const NOW = new Date('2026-08-01T10:00:00.000Z').getTime();
 const FUTURE_DATE = new Date('2026-08-02T00:00:00.000Z');
@@ -80,6 +81,27 @@ it('accepts a start time in the future relative to the injected clock', () => {
   const wellInFuture = new Date(NOW + 24 * 3600_000);
   const result = validateEventDraft({ ...validDraft, date: wellInFuture, startTimeText: '12:00' }, NOW);
   expect(result.ok).toBe(true);
+});
+
+// Mirrors DatePickerField's min/max (src/lib/date-range.ts), which only
+// constrain the calendar widget - this is what actually stops a manually-
+// typed <input type="date"> value (or a native picker's minimumDate/
+// maximumDate being bypassed some other way) from smuggling in a date
+// beyond "this year or next year." Derives the boundary from
+// getEventDateBounds itself (the same function the picker uses) rather than
+// a hardcoded date, so this stays correct regardless of the test runner's
+// timezone or what "next year" currently means.
+it('accepts a start time on the last day of next year (the boundary is inclusive)', () => {
+  const { max } = getEventDateBounds(new Date(NOW));
+  const result = validateEventDraft({ ...validDraft, date: max, startTimeText: '23:00' }, NOW);
+  expect(result.ok).toBe(true);
+});
+
+it('rejects a start time the day after the last day of next year', () => {
+  const { max } = getEventDateBounds(new Date(NOW));
+  const dayAfterMax = new Date(max.getFullYear(), max.getMonth(), max.getDate() + 1);
+  const result = validateEventDraft({ ...validDraft, date: dayAfterMax, startTimeText: '00:01' }, NOW);
+  expect(result).toEqual({ ok: false, error: 'Start time must be within this year or next year.' });
 });
 
 it('treats a blank fee as free (0)', () => {

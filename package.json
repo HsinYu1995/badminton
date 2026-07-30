@@ -38,6 +38,7 @@
     "@testing-library/react-native": "^14.0.1",
     "@types/jest": "29.5.14",
     "@types/react": "~19.2.2",
+    "babel-plugin-dynamic-import-node": "^2.3.3",
     "jest": "~29.7.0",
     "jest-expo": "~57.0.2",
     "supabase": "^2.109.1",
@@ -51,25 +52,28 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test:schema": "node --env-file=.env.local tests/schema.test.mjs",
-    "test:rls": "node --env-file=.env.local tests/rls.test.mjs",
-    "test:auth-profile": "node --env-file=.env.local tests/auth-profile-metadata.test.mjs",
-    "test:create-event": "node --env-file=.env.local tests/create-event.test.mjs",
-    "test:skill-bands": "node --env-file=.env.local tests/skill-bands.test.mjs",
-    "test:auth-session": "node --env-file=.env.local tests/auth-session.test.mjs",
-    "test:profile-edit": "node --env-file=.env.local tests/profile-edit.test.mjs",
-    "test:participant-lifecycle": "node --env-file=.env.local tests/participant-lifecycle.test.mjs",
-    "test:participant-decision": "node --env-file=.env.local tests/participant-decision.test.mjs",
-    "test:ratings": "node --env-file=.env.local tests/ratings.test.mjs",
-    "test:discover-pagination": "node --env-file=.env.local tests/discover-pagination.test.mjs",
+    "test:schema": "node --env-file=.env.local tests/integration/schema.test.mjs",
+    "test:rls": "node --env-file=.env.local tests/integration/rls.test.mjs",
+    "test:auth-profile": "node --env-file=.env.local tests/integration/auth-profile-metadata.test.mjs",
+    "test:create-event": "node --env-file=.env.local tests/integration/create-event.test.mjs",
+    "test:skill-bands": "node --env-file=.env.local tests/integration/skill-bands.test.mjs",
+    "test:auth-session": "node --env-file=.env.local tests/integration/auth-session.test.mjs",
+    "test:profile-edit": "node --env-file=.env.local tests/integration/profile-edit.test.mjs",
+    "test:participant-lifecycle": "node --env-file=.env.local tests/integration/participant-lifecycle.test.mjs",
+    "test:participant-decision": "node --env-file=.env.local tests/integration/participant-decision.test.mjs",
+    "test:ratings": "node --env-file=.env.local tests/integration/ratings.test.mjs",
+    "test:discover-pagination": "node --env-file=.env.local tests/integration/discover-pagination.test.mjs",
     "test": "jest"
   },
   "private": true,
   "jest": {
     "preset": "jest-expo",
+    "testMatch": [
+      "<rootDir>/tests/unit/**/*.[jt]s?(x)"
+    ],
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "<rootDir>/tests/"
+      "<rootDir>/tests/integration/"
     ],
     "modulePathIgnorePatterns": [
       "<rootDir>/.claude/worktrees/"

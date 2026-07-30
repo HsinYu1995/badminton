@@ -34,9 +34,9 @@ type EventCardProps = {
   event: EventListItem;
   action?: ReactNode;
   // Count of accepted event_participants rows for this event (the
-  // organizer is added separately - see computePlayerCounts).
-  // Omitted (rather than defaulted to 0) when the caller hasn't fetched it,
-  // so the card falls back to "Up to N players" instead of claiming 0/N.
+  // organizer is added separately - see computePlayerCounts). Omitted
+  // (rather than defaulted to 0) when the caller hasn't fetched it, so the
+  // card falls back to "Up to N players" instead of claiming 0/N.
   participantCount?: number;
   // Meters from the viewer's current location, from Discover's
   // discover_events RPC. Omitted (not shown) when the caller has no

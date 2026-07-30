@@ -5,7 +5,7 @@ import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-li
 // useCallback/useEffect dependency array.
 const FAKE_SESSION = { user: { id: 'fake-user-id' } };
 
-const ownProfile = { display_name: 'Fake Player', skill_level: 8, bio: null, contact_info: null };
+const ownProfileRow = { display_name: 'Fake Player', skill_level: 8, profile_contact: null };
 
 const organizedEvent = {
   id: 'event-organized',
@@ -33,22 +33,37 @@ const attendingEvent = {
   venues: { name: 'Away Court' },
 };
 
-const organizerProfile = {
+const organizerProfileRow = {
   id: 'organizer-user-id',
   display_name: 'Coach Wu',
   skill_level: 13,
-  contact_info: 'LINE: coachwu',
+  profile_contact: { contact_info: 'LINE: coachwu' },
 };
 
-const rosterRows = [
+// Raw rows as returned by the single batched event_participants query (see
+// getEventRosters) covering every organized/attending event at once: one
+// pending request on the organized event, and the viewer's own accepted row
+// on the attending event (that accepted row is what makes it "attending" -
+// FellowParticipants filters it back out since it excludes the viewer).
+const mockAllRosterRows = [
   {
+    event_id: organizedEvent.id,
     user_id: 'participant-1',
     status: 'pending',
-    profiles: { display_name: 'Newbie Player', skill_level: 2, contact_info: '090-1234' },
+    profiles: { display_name: 'Newbie Player', skill_level: 2, profile_contact: { contact_info: '090-1234' } },
+  },
+  {
+    event_id: attendingEvent.id,
+    user_id: 'fake-user-id',
+    status: 'accepted',
+    profiles: { display_name: 'Fake Player', skill_level: 8, profile_contact: null },
   },
 ];
 
 const mockLeaveEq = jest.fn(() => Promise.resolve({ error: null }));
+// handleDecide's real query chains .update().eq('event_id',...).eq('user_id',...).select('user_id') -
+// the .select() is what lets it detect an RLS-denied (zero-row) update instead of silently
+// "succeeding" (see the comment on ProfileScreen's handleDecide).
 const mockAcceptEq2 = jest.fn(() => ({ select: () => Promise.resolve({ data: [{ user_id: 'participant-1' }], error: null }) }));
 const mockAcceptEq1 = jest.fn((_column: string, _value: string) => ({ eq: mockAcceptEq2 }));
 const mockParticipantUpdate = jest.fn(() => ({
@@ -71,8 +86,8 @@ jest.mock('@/lib/supabase', () => ({
       if (table === 'profiles') {
         return {
           select: () => ({
-            eq: () => ({ single: () => Promise.resolve({ data: ownProfile, error: null }) }),
-            in: () => Promise.resolve({ data: [organizerProfile], error: null }),
+            eq: () => ({ single: () => Promise.resolve({ data: ownProfileRow, error: null }) }),
+            in: () => Promise.resolve({ data: [organizerProfileRow], error: null }),
           }),
         };
       }
@@ -87,27 +102,19 @@ jest.mock('@/lib/supabase', () => ({
       if (table === 'event_participants') {
         return {
           select: () => ({
-            eq: (column: string, value: string) => {
-              if (column === 'user_id') {
-                return { eq: () => Promise.resolve({ data: [{ event_id: attendingEvent.id }], error: null }) };
-              }
-              // column === 'event_id' - AttendeeRoster fetching a specific organized event's roster
-              return Promise.resolve({ data: value === organizedEvent.id ? rosterRows : [], error: null });
-            },
-            in: () => ({
-              in: () =>
-                Promise.resolve({
-                  data: [{ event_id: attendingEvent.id, status: 'accepted' }],
-                  error: null,
-                }),
-            }),
+            eq: (column: string) =>
+              column === 'user_id'
+                ? { eq: () => Promise.resolve({ data: [{ event_id: attendingEvent.id }], error: null }) }
+                : Promise.resolve({ data: [], error: null }),
+            // getEventRosters' single batched roster query: .in('event_id', ids).
+            in: () => Promise.resolve({ data: mockAllRosterRows, error: null }),
           }),
           update: mockParticipantUpdate,
           delete: () => ({ eq: () => ({ eq: mockLeaveEq }) }),
         };
       }
       if (table === 'ratings') {
-        return { select: () => ({ eq: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) }) };
+        return { select: () => ({ eq: () => ({ in: () => Promise.resolve({ data: [], error: null }) }) }) };
       }
       if (table === 'profile_credit') {
         return { select: () => ({ in: () => Promise.resolve({ data: [], error: null }) }) };
@@ -140,8 +147,8 @@ it(
     expect(screen.getByText('090-1234')).toBeTruthy();
 
     // organizedEvent's only participant is still pending (not counted yet):
-    // organizer (1) + 0 accepted = 1. attendingEvent's participant is
-    // accepted: organizer (1) + 1 accepted = 2.
+    // organizer (1) + 0 accepted = 1. attendingEvent's participant (the
+    // viewer's own row) is accepted: organizer (1) + 1 accepted = 2.
     expect(screen.getByText('1/8 players')).toBeTruthy();
     expect(screen.getByText('2/8 players')).toBeTruthy();
 

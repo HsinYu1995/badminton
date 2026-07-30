@@ -81,6 +81,7 @@ it(
 
     expect(await screen.findByText('Cancel request')).toBeTruthy();
     expect(screen.queryByText('Join')).toBeNull();
+    // A pending request doesn't occupy a spot until the organizer accepts it.
     expect(screen.getByText('1/8 players')).toBeTruthy();
 
     await fireEvent.press(screen.getByText('Cancel request'));

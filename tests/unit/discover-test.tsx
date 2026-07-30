@@ -62,12 +62,12 @@ jest.mock('@/lib/supabase', () => ({
         return {
           select: () => ({
             eq: () => Promise.resolve({ data: [], error: null }),
+            // A real query filters to ACTIVE_PARTICIPANT_STATUSES (accepted
+            // only) server-side, so a pending row would never come back here -
+            // this fixture only includes what a real accepted-only query
+            // could actually return.
             in: () => ({
-              in: () =>
-                Promise.resolve({
-                  data: [{ event_id: 'event-1', status: 'accepted' }],
-                  error: null,
-                }),
+              in: () => Promise.resolve({ data: [{ event_id: 'event-1', status: 'accepted' }], error: null }),
             }),
           }),
         };

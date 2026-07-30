@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
@@ -21,6 +21,16 @@ export default function DiscoverScreen() {
   const [distances, setDistances] = useState<Record<string, number | null>>({});
   const [myRequests, setMyRequests] = useState<Record<string, ParticipantStatus>>({});
   const [participantCounts, setParticipantCounts] = useState<Record<string, number>>({});
+  // Always mirrors participantCounts - read at the top of loadEvents/
+  // handleLoadMore (before the next fetch overwrites it) so the
+  // filled-since-you-applied diff below compares against the truly latest
+  // counts rather than a stale closure from whenever the callback was built.
+  const participantCountsRef = useRef<Record<string, number>>({});
+  // How many *more* people have been accepted, per event, since the last
+  // time this screen saw that event's count, for events where the viewer's
+  // own request is still pending - see notePendingSpotsFilled. Cleared once
+  // the viewer's own request resolves (accepted/declined) or disappears.
+  const [filledSinceApplied, setFilledSinceApplied] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -51,41 +61,86 @@ export default function DiscoverScreen() {
     };
   }, []);
 
-  async function loadParticipantCounts(eventIds: string[]) {
-    if (eventIds.length === 0) return;
+  async function loadParticipantCounts(eventIds: string[]): Promise<Record<string, number>> {
+    if (eventIds.length === 0) return {};
     const { data } = await supabase
       .from('event_participants')
       .select('event_id, status')
       .in('event_id', eventIds)
       .in('status', ACTIVE_PARTICIPANT_STATUSES);
-    setParticipantCounts((prev) => ({ ...prev, ...computePlayerCounts(eventIds, data ?? []) }));
+    const counts = computePlayerCounts(eventIds, data ?? []);
+    setParticipantCounts((prev) => {
+      const merged = { ...prev, ...counts };
+      participantCountsRef.current = merged;
+      return merged;
+    });
+    return counts;
   }
 
-  async function loadMyRequests() {
-    if (!session) return;
+  async function loadMyRequests(): Promise<Record<string, ParticipantStatus>> {
+    if (!session) return {};
     const { data } = await supabase.from('event_participants').select('event_id, status').eq('user_id', session.user.id);
     const map: Record<string, ParticipantStatus> = {};
     for (const row of data ?? []) {
       map[row.event_id] = row.status;
     }
     setMyRequests(map);
+    return map;
+  }
+
+  // Compares the counts fetched *before* this refresh against the ones just
+  // fetched, for every event the viewer currently has a pending request on -
+  // if it went up, the organizer accepted someone else while the viewer was
+  // still waiting. Accumulates rather than resetting each refresh, since the
+  // underlying fact ("N people got in ahead of you") stays true until your
+  // own request resolves one way or the other. Not a push notification -
+  // this only updates when Discover itself refetches (on focus, or the next
+  // page load), same as every other piece of state on this screen.
+  function notePendingSpotsFilled(
+    previousCounts: Record<string, number>,
+    newCounts: Record<string, number>,
+    newRequests: Record<string, ParticipantStatus>
+  ) {
+    setFilledSinceApplied((prev) => {
+      const next: Record<string, number> = {};
+      for (const [eventId, status] of Object.entries(newRequests)) {
+        if (status !== 'pending') continue;
+        const before = previousCounts[eventId];
+        const after = newCounts[eventId];
+        const increase = before != null && after != null && after > before ? after - before : 0;
+        const total = (prev[eventId] ?? 0) + increase;
+        if (total > 0) next[eventId] = total;
+      }
+      return next;
+    });
   }
 
   // Fetches the first page (top 10) fresh - called on every screen focus,
-  // same as the previous single-fetch design.
+  // same as the previous single-fetch design. Only the very first load (per
+  // mount) shows the full-screen spinner and blanks the list - refocusing
+  // the tab afterward refetches quietly in the background so switching back
+  // to Discover doesn't feel like a fresh, slow load every time.
+  const hasLoadedOnceRef = useRef(false);
   const loadEvents = useCallback(async () => {
-    setLoading(true);
+    const isFirstLoad = !hasLoadedOnceRef.current;
+    if (isFirstLoad) setLoading(true);
     setError(null);
+    const previousCounts = participantCountsRef.current;
     try {
       const { items, hasMore: more } = await fetchDiscoverPage(supabase, coords, 0);
       setEvents(items.map((item) => item.event));
       setDistances(Object.fromEntries(items.map((item) => [item.event.id, item.distanceMeters])));
       setHasMore(more);
-      await Promise.all([loadParticipantCounts(items.map((item) => item.event.id)), loadMyRequests()]);
+      const [newCounts, newRequests] = await Promise.all([
+        loadParticipantCounts(items.map((item) => item.event.id)),
+        loadMyRequests(),
+      ]);
+      notePendingSpotsFilled(previousCounts, newCounts, newRequests);
+      hasLoadedOnceRef.current = true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load events.');
     } finally {
-      setLoading(false);
+      if (isFirstLoad) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coords, session]);
@@ -102,12 +157,17 @@ export default function DiscoverScreen() {
   const handleLoadMore = useCallback(async () => {
     if (!hasMore || loadingMore || loading) return;
     setLoadingMore(true);
+    const previousCounts = participantCountsRef.current;
     try {
       const { items, hasMore: more } = await fetchDiscoverPage(supabase, coords, events.length);
       setEvents((prev) => [...prev, ...items.map((item) => item.event)]);
       setDistances((prev) => ({ ...prev, ...Object.fromEntries(items.map((item) => [item.event.id, item.distanceMeters])) }));
       setHasMore(more);
-      await Promise.all([loadParticipantCounts(items.map((item) => item.event.id)), loadMyRequests()]);
+      const [newCounts, newRequests] = await Promise.all([
+        loadParticipantCounts(items.map((item) => item.event.id)),
+        loadMyRequests(),
+      ]);
+      notePendingSpotsFilled(previousCounts, newCounts, newRequests);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load more events.');
     } finally {
@@ -152,6 +212,11 @@ export default function DiscoverScreen() {
       // organizer see "Join" again immediately, so a cancelled request can
       // be sent again later.
       setMyRequests((prev) => {
+        const next = { ...prev };
+        delete next[event.id];
+        return next;
+      });
+      setFilledSinceApplied((prev) => {
         const next = { ...prev };
         delete next[event.id];
         return next;
@@ -236,13 +301,26 @@ export default function DiscoverScreen() {
                       loading={cancelingEventId === event.id}
                     />
                   ) : requestStatus === 'pending' ? (
-                    <ActionButton
-                      label="Cancel request"
-                      onPress={() => handleCancelRequest(event)}
-                      variant="outline"
-                      loading={cancelingEventId === event.id}
-                    />
+                    <View style={styles.pendingAction}>
+                      {filledSinceApplied[event.id] > 0 && (
+                        <Text style={styles.filledNotice}>
+                          🔔 {filledSinceApplied[event.id]} {filledSinceApplied[event.id] === 1 ? 'spot' : 'spots'} filled
+                          since you applied
+                        </Text>
+                      )}
+                      <ActionButton
+                        label="Cancel request"
+                        onPress={() => handleCancelRequest(event)}
+                        variant="outline"
+                        loading={cancelingEventId === event.id}
+                      />
+                    </View>
                   ) : requestStatus === 'declined' ? (
+                    // A declined row can be self-deleted by its requester (see
+                    // participants_self_delete in 20260725064939_participants_self_delete.sql,
+                    // exercised by tests/integration/participant-decision.test.mjs) - reusing
+                    // handleCancelRequest here just removes the row, which brings the Join
+                    // button back so they can send a fresh request.
                     <ActionButton
                       label="Request again"
                       onPress={() => handleCancelRequest(event)}
@@ -279,4 +357,6 @@ const styles = StyleSheet.create({
   emptySubtext: { color: Court.inkSecondary, textAlign: 'center' },
   error: { color: Court.danger, marginBottom: Space.sm },
   ownEventLabel: { color: Court.green, fontWeight: '700' },
+  pendingAction: { alignItems: 'flex-end', gap: 4 },
+  filledNotice: { fontSize: 12, color: Court.inkSecondary, textAlign: 'right', maxWidth: 160 },
 });
