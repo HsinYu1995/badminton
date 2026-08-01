@@ -3,9 +3,11 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { isPastEvent, type EventListItem } from '@/lib/events';
+import { ACTIVE_PARTICIPANT_STATUSES, computePlayerCounts, isPastEvent, type EventListItem } from '@/lib/events';
+import { selectOrThrow } from '@/lib/mutations';
 import { loadProfileSummary, type Attendee, type AttendingEvent, type ProfileRow } from '@/lib/profile-data';
 import { submitRating, type Credit } from '@/lib/ratings';
+import type { ParticipantDecisionStatus } from '@/lib/participant-decisions';
 import { bandForLevel, SKILL_BANDS, type SkillBandId } from '@/lib/skill-bands';
 import { useI18n } from '@/lib/i18n';
 import { Court, Font, Radius, Space } from '@/constants/badminton-theme';
@@ -13,9 +15,9 @@ import { EventCard } from '@/components/event-card';
 import { ActionButton } from '@/components/action-button';
 import { Pill } from '@/components/pill';
 import { CreditPill } from '@/components/credit-pill';
-import { StarRating } from '@/components/star-rating';
 import { SkillBandSelector } from '@/components/skill-band-selector';
 import { SectionDivider } from '@/components/section-divider';
+import { AttendeeRoster, FellowParticipants, RatingRow } from '@/components/attendee-roster';
 
 export default function ProfileScreen() {
   const { t } = useI18n();
@@ -148,8 +150,10 @@ export default function ProfileScreen() {
     setRemoveError(null);
     setRemovingEventId(event.id);
     try {
-      const { error } = await supabase.from('events').delete().eq('id', event.id);
-      if (error) throw error;
+      await selectOrThrow(
+        supabase.from('events').delete().eq('id', event.id).select('id'),
+        t('profile.eventAlreadyRemoved')
+      );
       setMyEvents((prev) => prev.filter((e) => e.id !== event.id));
     } catch (err) {
       setRemoveError(err instanceof Error ? err.message : t('profile.couldNotRemoveEvent'));
@@ -163,12 +167,15 @@ export default function ProfileScreen() {
     setLeaveError(null);
     setLeavingEventId(event.id);
     try {
-      const { error } = await supabase
-        .from('event_participants')
-        .delete()
-        .eq('event_id', event.id)
-        .eq('user_id', session.user.id);
-      if (error) throw error;
+      await selectOrThrow(
+        supabase
+          .from('event_participants')
+          .delete()
+          .eq('event_id', event.id)
+          .eq('user_id', session.user.id)
+          .select('user_id'),
+        t('profile.alreadyLeftEvent')
+      );
       setAttendingEvents((prev) => prev.filter((e) => e.id !== event.id));
     } catch (err) {
       setLeaveError(err instanceof Error ? err.message : t('profile.couldNotLeaveEvent'));
@@ -177,33 +184,22 @@ export default function ProfileScreen() {
     }
   }
 
-  // The organizer accepting or declining one pending request - relies on
-  // participants_update_by_organizer (organizer can update any participant
-  // row on their own event; see 20260716201044_rls_policies.sql). Updates
-  // the row's status in place (pill flips, decision buttons disappear) and,
-  // only on acceptance, bumps that event's displayed player count by 1 - the
-  // one moment a request starts occupying a spot (see
-  // ACTIVE_PARTICIPANT_STATUSES in src/lib/events.ts).
-  //
-  // RLS silently matches zero rows rather than erroring when the organizer
-  // check fails (or the row was already decided) - .select('user_id') plus
-  // the length check below is what turns that into a visible error instead
-  // of an optimistic update the database never actually made.
-  async function handleDecide(eventId: string, userId: string, status: 'accepted' | 'declined') {
-    const { data: updated, error } = await supabase
-      .from('event_participants')
-      .update({ status })
-      .eq('event_id', eventId)
-      .eq('user_id', userId)
-      .select('user_id');
-    if (error) throw error;
-    if (!updated?.length) throw new Error('This request is no longer available.');
-    setRostersByEventId((prev) => ({
-      ...prev,
-      [eventId]: (prev[eventId] ?? []).map((row) => (row.user_id === userId ? { ...row, status } : row)),
-    }));
+  // The actual accept/decline mutation lives in useParticipantDecision (see
+  // src/lib/participant-decisions.ts, used inside AttendeeRoster) - this is
+  // just the screen-level resync once it succeeds: flip the row's status in
+  // place (pill flips, decision buttons disappear) and, only on acceptance,
+  // resync that event's displayed player count from the roster we just
+  // updated - see ACTIVE_PARTICIPANT_STATUSES in src/lib/events.ts. Player
+  // count and rosters are shared across every event on this screen, which is
+  // why this lives here rather than inside the hook.
+  function handleDecided(eventId: string, userId: string, status: ParticipantDecisionStatus) {
+    const nextRoster = (rostersByEventId[eventId] ?? []).map((row) => (row.user_id === userId ? { ...row, status } : row));
+    setRostersByEventId((prev) => ({ ...prev, [eventId]: nextRoster }));
     if (status === 'accepted') {
-      setParticipantCounts((prev) => ({ ...prev, [eventId]: (prev[eventId] ?? 1) + 1 }));
+      const activeRows = nextRoster
+        .filter((row) => (ACTIVE_PARTICIPANT_STATUSES as readonly string[]).includes(row.status))
+        .map((row) => ({ event_id: eventId }));
+      setParticipantCounts((prev) => ({ ...prev, ...computePlayerCounts([eventId], activeRows) }));
     }
   }
 
@@ -377,241 +373,19 @@ export default function ProfileScreen() {
               </Pressable>
               {session && (
                 <AttendeeRoster
+                  eventId={event.id}
                   attendees={rostersByEventId[event.id] ?? []}
                   canRate={isPastEvent(event)}
                   credits={creditsByUserId}
                   myRatings={myRatingsByEventId[event.id] ?? {}}
                   onRate={(rateeId, score) => handleRate(event.id, session.user.id, rateeId, score)}
-                  onDecide={(userId, status) => handleDecide(event.id, userId, status)}
+                  onDecided={(userId, status) => handleDecided(event.id, userId, status)}
                 />
               )}
             </View>
           ))}
       </View>
     </ScrollView>
-  );
-}
-
-// One person's row: name, skill band, Credit, and (when ratingsEnabled) a
-// StarRating to score them - shared shape between the organizer roster and
-// the fellow-participants list below, since both show "someone I shared an
-// event with."
-function PersonRow({
-  name,
-  skillLevel,
-  contact,
-  credit,
-  statusLabel,
-  statusTone,
-  decision,
-  rating,
-  isGuest,
-}: {
-  name: string;
-  skillLevel: number | null;
-  contact?: string | null;
-  credit: Credit | undefined;
-  statusLabel?: string;
-  statusTone?: 'green' | 'neutral' | 'danger';
-  decision?: { onAccept: () => void; onDecline: () => void; loading?: boolean };
-  rating?: { value: number; onChange: (score: number) => void; disabled?: boolean };
-  isGuest?: boolean;
-}) {
-  const { t } = useI18n();
-  return (
-    <View style={styles.rosterRow}>
-      <Text style={styles.rosterName}>{name}</Text>
-      <View style={styles.pillRowSmall}>
-        {statusLabel && <Pill label={statusLabel} tone={statusTone ?? 'neutral'} />}
-        {isGuest && <Pill label={t('profile.guestBadge')} tone="neutral" />}
-        {skillLevel != null && <Pill label={t(`skillBands.${bandForLevel(skillLevel).id}`)} tone="feather" />}
-        <CreditPill credit={credit} />
-        {contact && <Pill label={contact} tone="neutral" />}
-      </View>
-      {decision && (
-        <View style={styles.decisionRow}>
-          <ActionButton label={t('profile.accept')} onPress={decision.onAccept} loading={decision.loading} />
-          <ActionButton label={t('profile.decline')} onPress={decision.onDecline} variant="danger" loading={decision.loading} />
-        </View>
-      )}
-      {rating && <StarRating value={rating.value} onChange={rating.onChange} disabled={rating.disabled} />}
-    </View>
-  );
-}
-
-// A single rate-this-person control with its own submit-error display -
-// used for the organizer card on an attending event (rate the host). `value`
-// and the actual submit come from ProfileScreen's consolidated state/
-// handleRate (see loadProfileSummary's myRatingsByEventId) rather than this
-// component fetching its own copy, which is what RatingRow, FellowParticipants,
-// and AttendeeRoster each used to do independently.
-function RatingRow({ value, canRate, onRate }: { value: number; canRate: boolean; onRate: (score: number) => Promise<void> }) {
-  const { t } = useI18n();
-  const [error, setError] = useState<string | null>(null);
-
-  if (!canRate) return null;
-
-  async function handlePress(score: number) {
-    setError(null);
-    try {
-      await onRate(score);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('profile.couldNotSaveRating'));
-    }
-  }
-
-  return (
-    <View style={styles.ratingRow}>
-      <Text style={styles.ratingLabel}>{t('profile.rateTheHost')}</Text>
-      <StarRating value={value} onChange={handlePress} />
-      {error && <Text style={styles.error}>{error}</Text>}
-    </View>
-  );
-}
-
-// The other *accepted* players in a game the signed-in user is attending -
-// only accepted rows: a regular participant doesn't need the organizer's
-// pending-request triage view, just the people they actually played with.
-// `attendees` is this event's full roster (see loadProfileSummary's
-// rostersByEventId) - filtered down to "accepted, not me" here rather than
-// by the caller, since that's specific to this card's own framing.
-function FellowParticipants({
-  attendees,
-  currentUserId,
-  canRate,
-  credits,
-  myRatings,
-  onRate,
-}: {
-  attendees: Attendee[];
-  currentUserId: string;
-  canRate: boolean;
-  credits: Record<string, Credit>;
-  myRatings: Record<string, number>;
-  onRate: (rateeId: string, score: number) => Promise<void>;
-}) {
-  const { t } = useI18n();
-  const [error, setError] = useState<string | null>(null);
-  const fellows = attendees.filter((row) => row.status === 'accepted' && row.user_id !== currentUserId);
-
-  if (fellows.length === 0) return null;
-
-  async function handleRate(rateeId: string, score: number) {
-    setError(null);
-    try {
-      await onRate(rateeId, score);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('profile.couldNotSaveRating'));
-    }
-  }
-
-  return (
-    <View style={styles.rosterCard}>
-      <Text style={styles.rosterTitle}>{t('profile.alsoPlaying', { count: fellows.length })}</Text>
-      {error && <Text style={styles.error}>{error}</Text>}
-      {fellows.map((attendee) => (
-        <PersonRow
-          key={attendee.user_id}
-          name={attendee.profiles?.display_name ?? t('profile.unknownPlayer')}
-          skillLevel={attendee.profiles?.skill_level ?? null}
-          contact={attendee.profiles?.contact_info}
-          credit={credits[attendee.user_id]}
-          isGuest={attendee.profiles?.is_anonymous ?? false}
-          rating={
-            canRate
-              ? { value: myRatings[attendee.user_id] ?? 0, onChange: (score) => handleRate(attendee.user_id, score) }
-              : undefined
-          }
-        />
-      ))}
-    </View>
-  );
-}
-
-// The full roster (any status) of one organized event - see
-// loadProfileSummary's rostersByEventId, batched across every organized/
-// attending event in one query rather than fetched per card.
-function AttendeeRoster({
-  attendees,
-  canRate,
-  credits,
-  myRatings,
-  onRate,
-  onDecide,
-}: {
-  attendees: Attendee[];
-  canRate: boolean;
-  credits: Record<string, Credit>;
-  myRatings: Record<string, number>;
-  onRate: (rateeId: string, score: number) => Promise<void>;
-  onDecide: (userId: string, status: 'accepted' | 'declined') => Promise<void>;
-}) {
-  const { t } = useI18n();
-  const [error, setError] = useState<string | null>(null);
-  const [decidingUserId, setDecidingUserId] = useState<string | null>(null);
-  const [decisionError, setDecisionError] = useState<string | null>(null);
-
-  if (attendees.length === 0) return null;
-
-  async function handleRate(rateeId: string, score: number) {
-    setError(null);
-    try {
-      await onRate(rateeId, score);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('profile.couldNotSaveRating'));
-    }
-  }
-
-  async function handleDecide(userId: string, status: 'accepted' | 'declined') {
-    setDecisionError(null);
-    setDecidingUserId(userId);
-    try {
-      await onDecide(userId, status);
-    } catch (err) {
-      setDecisionError(err instanceof Error ? err.message : t('profile.couldNotUpdateRequest'));
-    } finally {
-      setDecidingUserId(null);
-    }
-  }
-
-  return (
-    <View style={styles.rosterCard}>
-      <Text style={styles.rosterTitle}>{t('profile.requestsCount', { count: attendees.length })}</Text>
-      {error && <Text style={styles.error}>{error}</Text>}
-      {decisionError && <Text style={styles.error}>{decisionError}</Text>}
-      {attendees.map((attendee) => (
-        <PersonRow
-          key={attendee.user_id}
-          name={attendee.profiles?.display_name ?? t('profile.unknownPlayer')}
-          skillLevel={attendee.profiles?.skill_level ?? null}
-          contact={attendee.profiles?.contact_info}
-          credit={credits[attendee.user_id]}
-          isGuest={attendee.profiles?.is_anonymous ?? false}
-          statusLabel={
-            attendee.status === 'accepted'
-              ? t('profile.statusAccepted')
-              : attendee.status === 'declined'
-                ? t('profile.statusDeclined')
-                : t('profile.statusPending')
-          }
-          statusTone={attendee.status === 'accepted' ? 'green' : attendee.status === 'declined' ? 'danger' : 'neutral'}
-          decision={
-            attendee.status === 'pending'
-              ? {
-                  onAccept: () => handleDecide(attendee.user_id, 'accepted'),
-                  onDecline: () => handleDecide(attendee.user_id, 'declined'),
-                  loading: decidingUserId === attendee.user_id,
-                }
-              : undefined
-          }
-          rating={
-            canRate && attendee.status === 'accepted'
-              ? { value: myRatings[attendee.user_id] ?? 0, onChange: (score) => handleRate(attendee.user_id, score) }
-              : undefined
-          }
-        />
-      ))}
-    </View>
   );
 }
 
@@ -668,19 +442,4 @@ const styles = StyleSheet.create({
   },
   organizerLabel: { fontFamily: Font.display, fontSize: 13, color: Court.ink },
   pillRowSmall: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.xs },
-  ratingRow: { gap: 4, marginTop: Space.xs },
-  ratingLabel: { fontSize: 12, color: Court.inkSecondary },
-  rosterCard: {
-    backgroundColor: Court.shuttle,
-    borderRadius: Radius.md,
-    padding: Space.sm,
-    marginTop: -Space.sm,
-    marginBottom: Space.md,
-    marginLeft: Space.sm,
-    gap: Space.sm,
-  },
-  rosterTitle: { fontFamily: Font.display, fontSize: 13, color: Court.ink },
-  rosterRow: { gap: 4 },
-  rosterName: { fontFamily: Font.display, fontSize: 13, color: Court.ink },
-  decisionRow: { flexDirection: 'row', gap: Space.sm, marginTop: Space.xs },
 });

@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { LocaleTag } from '@/lib/i18n';
+import { useI18n, type LocaleTag } from '@/lib/i18n';
 
 export type Credit = { credit: number; ratingsCount: number };
 
@@ -68,4 +69,26 @@ export async function submitRating(supabase: SupabaseClient, input: SubmitRating
       { onConflict: 'event_id,rater_id,ratee_id' }
     );
   if (error) throw error;
+}
+
+// Wraps a rate call in the same in-flight/error handling every rating
+// control needs (RatingRow, and each roster row in AttendeeRoster and
+// FellowParticipants) - previously each of those hand-rolled its own copy of
+// this exact try/catch. `Args` lets one hook serve both "rate this one
+// person" (RatingRow: (score) => ...) and "rate this person by id"
+// (the roster components: (rateeId, score) => ...) shapes.
+export function useRating<Args extends unknown[]>(rate: (...args: Args) => Promise<void>) {
+  const { t } = useI18n();
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleRate(...args: Args) {
+    setError(null);
+    try {
+      await rate(...args);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('profile.couldNotSaveRating'));
+    }
+  }
+
+  return { rate: handleRate, error };
 }

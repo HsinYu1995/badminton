@@ -56,9 +56,9 @@ export function isPastEvent(event: Pick<EventListItem, 'end_time'>, now: number 
 
 // An event's Player count (see CONTEXT.md) is the organizer - always
 // exactly one, since organizers have no event_participants row of their
-// own - plus every pending/accepted request. Returns an entry for every
-// id in `eventIds`, even ones with zero rows, so callers never need a
-// `?? 0`/`?? 1` fallback at the point of use.
+// own - plus every accepted request (see ACTIVE_PARTICIPANT_STATUSES
+// above). Returns an entry for every id in `eventIds`, even ones with zero
+// rows, so callers never need a `?? 0`/`?? 1` fallback at the point of use.
 export function computePlayerCounts(
   eventIds: string[],
   activeParticipantRows: { event_id: string }[]
