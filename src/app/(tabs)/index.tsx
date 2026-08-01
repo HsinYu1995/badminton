@@ -5,6 +5,7 @@ import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { ACTIVE_PARTICIPANT_STATUSES, computePlayerCounts, type EventListItem } from '@/lib/events';
+import { selectOrThrow } from '@/lib/mutations';
 import { DISCOVER_PAGE_SIZE, fetchDiscoverPage, type Coordinates } from '@/lib/discover-events';
 import { Court, Font, Space } from '@/constants/badminton-theme';
 import { useI18n, pluralize } from '@/lib/i18n';
@@ -206,12 +207,10 @@ export default function DiscoverScreen() {
     setCancelingEventId(event.id);
     const wasAccepted = myRequests[event.id] === 'accepted';
     try {
-      const { error: cancelErr } = await supabase
-        .from('event_participants')
-        .delete()
-        .eq('event_id', event.id)
-        .eq('user_id', session.user.id);
-      if (cancelErr) throw cancelErr;
+      await selectOrThrow(
+        supabase.from('event_participants').delete().eq('event_id', event.id).eq('user_id', session.user.id).select('user_id'),
+        t('discover.requestAlreadyWithdrawn')
+      );
       // Removing the row entirely (not marking it 'declined') lets the
       // organizer see "Join" again immediately, so a cancelled request can
       // be sent again later.
@@ -226,10 +225,12 @@ export default function DiscoverScreen() {
         return next;
       });
       // A still-pending request was never counted, so cancelling it doesn't
-      // change the count. Only losing an accepted spot frees one up - floor
-      // at 1, not 0, since the organizer is always still there.
+      // change the count. Only losing an accepted spot frees one up -
+      // re-fetched from computePlayerCounts's source of truth rather than
+      // hand-decremented, so this never drifts from how the count is
+      // computed everywhere else.
       if (wasAccepted) {
-        setParticipantCounts((prev) => ({ ...prev, [event.id]: Math.max((prev[event.id] ?? 1) - 1, 1) }));
+        await loadParticipantCounts([event.id]);
       }
     } catch (err) {
       setCancelError(err instanceof Error ? err.message : t('discover.couldNotCancel'));

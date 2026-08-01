@@ -60,7 +60,7 @@ const mockAllRosterRows = [
   },
 ];
 
-const mockLeaveEq = jest.fn(() => Promise.resolve({ error: null }));
+const mockLeaveEq = jest.fn(() => ({ select: () => Promise.resolve({ data: [{ user_id: 'fake-user-id' }], error: null }) }));
 // handleDecide's real query chains .update().eq('event_id',...).eq('user_id',...).select('user_id') -
 // the .select() is what lets it detect an RLS-denied (zero-row) update instead of silently
 // "succeeding" (see the comment on ProfileScreen's handleDecide).

@@ -18,13 +18,24 @@ const mockEvent = {
 // object literal per call breaks any screen that depends on it in a
 // useCallback/useEffect dependency array.
 const FAKE_SESSION = { user: { id: 'fake-user-id' } };
-const mockParticipantInsert = jest.fn(() => Promise.resolve({ error: null }));
-const mockParticipantDeleteEq2 = jest.fn(() => ({
-  select: () => Promise.resolve({ data: [{ event_id: mockEvent.id }], error: null }),
-}));
-const mockParticipantDelete = jest.fn(() => ({
-  eq: () => ({ eq: mockParticipantDeleteEq2 }),
-}));
+
+// Represents the request already being gone by the time the press lands
+// (e.g. the organizer already declined it) - RLS matches zero rows and
+// reports no error, exactly like a real blocked delete. Chainable AND
+// directly awaitable, so it resolves the same way whether the caller reads
+// it via .eq().eq() (today's un-guarded shape) or .eq().eq().select() (the
+// guarded shape once handleCancelRequest is fixed) - only the guarded one
+// actually looks at it.
+function chainableZeroRows() {
+  const result = { data: [], error: null };
+  const chain: Record<string, unknown> = {
+    eq: () => chain,
+    select: () => Promise.resolve(result),
+    then: (resolve: (value: typeof result) => void) => resolve(result),
+  };
+  return chain;
+}
+const mockParticipantDelete = jest.fn(() => chainableZeroRows());
 
 jest.mock('@/lib/auth-context', () => ({
   AuthProvider: ({ children }: { children: unknown }) => children,
@@ -51,10 +62,12 @@ jest.mock('@/lib/supabase', () => ({
       if (table === 'event_participants') {
         return {
           select: () => ({
-            eq: () => Promise.resolve({ data: [], error: null }),
+            // loadParticipantCounts: .in('event_id', ids).in('status', ACTIVE_PARTICIPANT_STATUSES)
             in: () => ({ in: () => Promise.resolve({ data: [], error: null }) }),
+            // loadMyRequests: .eq('user_id', userId) - the viewer already has a
+            // pending request on mockEvent before this screen even loads.
+            eq: () => Promise.resolve({ data: [{ event_id: mockEvent.id, status: 'pending' }], error: null }),
           }),
-          insert: mockParticipantInsert,
           delete: mockParticipantDelete,
         };
       }
@@ -64,34 +77,21 @@ jest.mock('@/lib/supabase', () => ({
 }));
 
 it(
-  'joins an event, shows a Cancel request state, and cancelling goes back to Join',
+  'shows an error and keeps the Cancel request state when cancelling is silently blocked (zero rows matched)',
   async () => {
     await renderRouter({ appDir: 'src/app', overrides: {} }, { initialUrl: '/(tabs)' });
 
-    await screen.findByText(mockEvent.title);
-    // The organizer is always a player too, so an event nobody has joined
-    // yet still shows 1, not "Up to 8 players".
-    expect(screen.getByText('1/8 players')).toBeTruthy();
-    await fireEvent.press(screen.getByText('Join'));
-
-    await waitFor(() => expect(mockParticipantInsert).toHaveBeenCalledTimes(1));
-    expect(mockParticipantInsert).toHaveBeenCalledWith({
-      event_id: mockEvent.id,
-      user_id: FAKE_SESSION.user.id,
-      status: 'pending',
-    });
-
     expect(await screen.findByText('Cancel request')).toBeTruthy();
-    expect(screen.queryByText('Join')).toBeNull();
-    // A pending request doesn't occupy a spot until the organizer accepts it.
-    expect(screen.getByText('1/8 players')).toBeTruthy();
-
     await fireEvent.press(screen.getByText('Cancel request'));
 
     await waitFor(() => expect(mockParticipantDelete).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText('Join')).toBeTruthy();
-    expect(screen.queryByText('Cancel request')).toBeNull();
-    expect(screen.getByText('1/8 players')).toBeTruthy();
+
+    // The mutation matched zero rows - it must surface as a visible error,
+    // not a silent success that reverts to "Join" for a request the
+    // database never actually withdrew.
+    expect(await screen.findByText('This request was already withdrawn.')).toBeTruthy();
+    expect(screen.getByText('Cancel request')).toBeTruthy();
+    expect(screen.queryByText('Join')).toBeNull();
   },
   15000
 );

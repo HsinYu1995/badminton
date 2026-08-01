@@ -30,7 +30,7 @@ const upcomingEvent = {
 // object literal per call breaks any screen that depends on it in a
 // useCallback/useEffect dependency array.
 const FAKE_SESSION = { user: { id: 'fake-user-id' } };
-const mockEventsDeleteEq = jest.fn(() => Promise.resolve({ error: null }));
+const mockEventsDeleteEq = jest.fn(() => ({ select: () => Promise.resolve({ data: [{ id: pastEvent.id }], error: null }) }));
 
 jest.mock('@/lib/auth-context', () => ({
   AuthProvider: ({ children }: { children: unknown }) => children,
